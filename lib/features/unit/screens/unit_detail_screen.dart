@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
 import '../../../features/finance/log_payment_screen.dart';
@@ -6,6 +7,7 @@ import '../../../models/payment.dart';
 import '../../../models/tenant.dart';
 import '../../../models/unit.dart';
 import '../../../services/payment_service.dart';
+import '../../../services/receipt_service.dart';
 import '../../../services/supabase_service.dart';
 
 class UnitDetailScreen extends StatefulWidget {
@@ -30,6 +32,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   List<PaymentRecord> _payments = [];
   double _totalPaidThisMonth = 0;
   double _balanceDue = 0;
+  bool _isGeneratingReceipt = false;
 
   static const Map<String, (int min, int max)> _fallbackOccupancyRules = {
     'bedsitter': (1, 1),
@@ -110,6 +113,49 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   }
 
   String _currency(double value) => '\$${value.toStringAsFixed(2)}';
+
+  Future<void> _shareReceipt(PaymentRecord payment) async {
+    if (_isGeneratingReceipt) {
+      return;
+    }
+
+    setState(() {
+      _isGeneratingReceipt = true;
+    });
+
+    try {
+      final bytes = await ReceiptService.instance.generateReceiptPdf(
+        payment: payment,
+        unit: _unit,
+        tenant: _tenant,
+        totalPaidThisMonth: _totalPaidThisMonth,
+        remainingBalanceForMonth: _balanceDue,
+      );
+
+      if (!mounted) return;
+
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'rent_receipt_${_unit.unitNumber}_${payment.id}.pdf',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Failed to generate receipt: $error',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isGeneratingReceipt = false;
+      });
+    }
+  }
 
   Future<void> _launchDialer(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
@@ -497,13 +543,29 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                     style: const TextStyle(fontFamily: AppTheme.appFontFamily),
                                   ),
                                   trailing: SizedBox(
-                                    width: 96,
-                                    child: Text(
-                                      payment.transactionRef ?? '-',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                                    width: 132,
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            payment.transactionRef ?? '-',
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            textAlign: TextAlign.right,
+                                            style: const TextStyle(
+                                              fontFamily: AppTheme.appFontFamily,
+                                            ),
+                                          ),
+                                        ),
+                                        IconButton(
+                                          tooltip: 'Share Receipt',
+                                          icon: const Icon(Icons.receipt_long),
+                                          onPressed: _isGeneratingReceipt
+                                              ? null
+                                              : () => _shareReceipt(payment),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );

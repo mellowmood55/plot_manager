@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../../core/theme.dart';
@@ -46,27 +48,46 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   }
 
   Future<void> _loadUnits() async {
+    if (!mounted) return;
+
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final units = await SupabaseService.instance.fetchUnitsByProperty(widget.property.id);
+      final units = await SupabaseService.instance
+          .fetchUnitsByProperty(widget.property.id)
+          .timeout(const Duration(seconds: 15));
 
-      final List<_UnitTenantView> data = [];
+      final data = await Future.wait(
+        units.map((unit) async {
+          try {
+            final tenant = await SupabaseService.instance
+                .fetchTenantByUnitId(unit.id)
+                .timeout(const Duration(seconds: 8));
+            return _UnitTenantView(unit: unit, tenant: tenant);
+          } catch (_) {
+            // Do not block the full screen if one tenant lookup fails.
+            return _UnitTenantView(unit: unit, tenant: null);
+          }
+        }),
+      );
 
-      for (final unit in units) {
-        final tenant = await SupabaseService.instance.fetchTenantByUnitId(unit.id);
-
-        data.add(_UnitTenantView(unit: unit, tenant: tenant));
-      }
+      if (!mounted) return;
 
       setState(() {
         _units = data;
         _isLoading = false;
       });
+    } on TimeoutException {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Loading units timed out. Please try again.';
+      });
     } catch (error) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _error = 'Failed to load units: $error';
