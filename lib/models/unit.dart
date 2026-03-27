@@ -5,6 +5,7 @@ class Unit {
   final String status;
   final String? tenantId;
   final String? unitType;
+  final double rentAmount;
 
   Unit({
     required this.id,
@@ -13,6 +14,7 @@ class Unit {
     required this.status,
     this.tenantId,
     this.unitType,
+    this.rentAmount = 0,
   });
 
   String get name => unitNumber;
@@ -29,6 +31,9 @@ class Unit {
       status: (json['status'] ?? 'vacant').toString(),
       tenantId: json['tenant_id']?.toString(),
       unitType: json['unit_type']?.toString(),
+      rentAmount: json['rent_amount'] is num
+          ? (json['rent_amount'] as num).toDouble()
+          : double.tryParse((json['rent_amount'] ?? '0').toString()) ?? 0,
     );
   }
 }

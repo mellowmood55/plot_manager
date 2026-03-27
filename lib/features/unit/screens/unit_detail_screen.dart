@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
+import '../../../features/finance/log_payment_screen.dart';
+import '../../../models/payment.dart';
 import '../../../models/tenant.dart';
 import '../../../models/unit.dart';
+import '../../../services/payment_service.dart';
 import '../../../services/supabase_service.dart';
 
 class UnitDetailScreen extends StatefulWidget {
@@ -22,6 +25,11 @@ class UnitDetailScreen extends StatefulWidget {
 class _UnitDetailScreenState extends State<UnitDetailScreen> {
   late Unit _unit;
   Tenant? _tenant;
+  bool _isPaymentLoading = true;
+  String? _paymentError;
+  List<PaymentRecord> _payments = [];
+  double _totalPaidThisMonth = 0;
+  double _balanceDue = 0;
 
   static const Map<String, (int min, int max)> _fallbackOccupancyRules = {
     'bedsitter': (1, 1),
@@ -38,7 +46,70 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
     super.initState();
     _unit = widget.unit;
     _tenant = widget.tenant;
+    _loadPaymentData();
   }
+
+  Future<void> _loadPaymentData() async {
+    setState(() {
+      _isPaymentLoading = true;
+      _paymentError = null;
+    });
+
+    try {
+      final paymentHistory = await PaymentService.instance.fetchPaymentHistoryByUnit(_unit.id);
+      final paidThisMonth = await PaymentService.instance.fetchTotalPaidThisMonth(_unit.id);
+      final balanceDue = (_unit.rentAmount - paidThisMonth).clamp(0, double.infinity).toDouble();
+
+      if (!mounted) return;
+
+      setState(() {
+        _payments = paymentHistory;
+        _totalPaidThisMonth = paidThisMonth;
+        _balanceDue = balanceDue;
+        _isPaymentLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isPaymentLoading = false;
+        _paymentError = 'Failed to load payments: $error';
+      });
+    }
+  }
+
+  Future<void> _openLogPaymentScreen() async {
+    if (_tenant == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: const Text(
+            'Add a tenant before logging payments.',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final result = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => LogPaymentScreen(
+          unitId: _unit.id,
+          tenantId: _tenant?.id,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (result == true) {
+      await _loadPaymentData();
+    }
+  }
+
+  String _currency(double value) => '\$${value.toStringAsFixed(2)}';
 
   Future<void> _launchDialer(String phone) async {
     final uri = Uri(scheme: 'tel', path: phone);
@@ -183,6 +254,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                       status: 'occupied',
                       tenantId: tenant.id,
                       unitType: _unit.unitType,
+                      rentAmount: _unit.rentAmount,
                     );
                   });
                   Navigator.of(context).pop();
@@ -271,6 +343,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final occupied = _unit.isOccupied;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       appBar: AppBar(
@@ -281,47 +354,218 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
-        child: occupied && _tenant != null
-            ? Card(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'Tenant Profile',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontFamily: AppTheme.appFontFamily,
-                              fontWeight: FontWeight.bold,
-                            ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (occupied && _tenant != null)
+                SizedBox(
+                  width: screenWidth,
+                  child: Card(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Tenant Profile',
+                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                  fontFamily: AppTheme.appFontFamily,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                          const SizedBox(height: 16),
+                          _InfoRow(label: 'Name', value: _tenant!.name),
+                          _PhoneRow(
+                            label: 'Phone',
+                            value: _tenant!.phoneNumber,
+                            onTap: () => _launchDialer(_tenant!.phoneNumber),
+                          ),
+                          _InfoRow(label: 'National ID', value: _tenant!.nationalId),
+                          _InfoRow(
+                            label: 'Occupants',
+                            value: _tenant!.occupants.toString(),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 16),
-                      _InfoRow(label: 'Name', value: _tenant!.name),
-                      _PhoneRow(
-                        label: 'Phone',
-                        value: _tenant!.phoneNumber,
-                        onTap: () => _launchDialer(_tenant!.phoneNumber),
-                      ),
-                      _InfoRow(label: 'National ID', value: _tenant!.nationalId),
-                      _InfoRow(
-                        label: 'Occupants',
-                        value: _tenant!.occupants.toString(),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              )
-            : Center(
-                child: ElevatedButton.icon(
+                )
+              else
+                ElevatedButton.icon(
                   onPressed: _showAddTenantDialog,
                   icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text('+ Add Tenant'),
+                  label: const Text(
+                    '+ Add Tenant',
+                    style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: screenWidth,
+                child: Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Payment History',
+                                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                      fontFamily: AppTheme.appFontFamily,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            ElevatedButton(
+                              onPressed: _openLogPaymentScreen,
+                              child: const Text(
+                                'Log Payment',
+                                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: [
+                            _SummaryBadge(
+                              title: 'Total Paid this Month',
+                              value: _currency(_totalPaidThisMonth),
+                              color: const Color(0xFF0D9488),
+                            ),
+                            _SummaryBadge(
+                              title: 'Balance Due',
+                              value: _currency(_balanceDue),
+                              color: Colors.orange.shade700,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 14),
+                        if (_isPaymentLoading)
+                          const Center(child: CircularProgressIndicator())
+                        else if (_paymentError != null)
+                          Text(
+                            _paymentError!,
+                            style: const TextStyle(
+                              fontFamily: AppTheme.appFontFamily,
+                              color: Colors.redAccent,
+                            ),
+                          )
+                        else if (_payments.isEmpty)
+                          const Text(
+                            'No payments recorded yet.',
+                            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                          )
+                        else
+                          SizedBox(
+                            width: screenWidth,
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemBuilder: (context, index) {
+                                final payment = _payments[index];
+                                final month = payment.paymentDate.month.toString().padLeft(2, '0');
+                                final day = payment.paymentDate.day.toString().padLeft(2, '0');
+                                final dateLabel = '${payment.paymentDate.year}-$month-$day';
+
+                                return ListTile(
+                                  dense: true,
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(
+                                    _currency(payment.amountPaid),
+                                    style: const TextStyle(
+                                      fontFamily: AppTheme.appFontFamily,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${payment.paymentMethod}  •  $dateLabel',
+                                    style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                                  ),
+                                  trailing: SizedBox(
+                                    width: 96,
+                                    child: Text(
+                                      payment.transactionRef ?? '-',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.right,
+                                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                                    ),
+                                  ),
+                                );
+                              },
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemCount: _payments.length,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SummaryBadge extends StatelessWidget {
+  const _SummaryBadge({
+    required this.title,
+    required this.value,
+    required this.color,
+  });
+
+  final String title;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.7)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              fontSize: 12,
+              color: Color(0xFFCBD5E1),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
