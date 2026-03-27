@@ -560,7 +560,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
                                         ),
                                         IconButton(
                                           tooltip: 'Share Receipt',
-                                          icon: const Icon(Icons.receipt_long),
+                                          icon: const Icon(Icons.share),
                                           onPressed: _isGeneratingReceipt
                                               ? null
                                               : () => _shareReceipt(payment),
