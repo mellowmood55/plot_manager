@@ -219,6 +219,7 @@ class FinanceService {
       monthBounds.startInclusive,
       monthBounds.endExclusive,
     );
+    final tenantByUnitId = await _fetchTenantsByUnitId(unitIds);
 
     final arrears = <ArrearsItem>[];
 
@@ -245,13 +246,13 @@ class FinanceService {
         continue;
       }
 
-      final tenantInfo = _extractTenant(unit['tenants']);
+      final tenantInfo = tenantByUnitId[unitId] ?? const _TenantInfo();
       arrears.add(
         ArrearsItem(
           unitId: unitId,
           unitNumber: unitNumber,
-          tenantName: tenantInfo['full_name'] ?? 'Tenant',
-          tenantPhone: tenantInfo['phone_number'],
+          tenantName: tenantInfo.fullName ?? 'Tenant',
+          tenantPhone: tenantInfo.phoneNumber,
           balanceDue: effectiveBalance,
         ),
       );
@@ -321,14 +322,42 @@ class FinanceService {
     try {
       return await client
           .from('units')
-          .select('id, unit_number, rent_amount, status, tenant_id, balance_due, tenants(full_name, phone_number)')
+          .select('id, unit_number, rent_amount, status, tenant_id, balance_due')
           .inFilter('property_id', propertyIds);
     } catch (_) {
       return client
           .from('units')
-          .select('id, unit_number, rent_amount, status, tenant_id, tenants(full_name, phone_number)')
+          .select('id, unit_number, rent_amount, status, tenant_id')
           .inFilter('property_id', propertyIds);
     }
+  }
+
+  Future<Map<String, _TenantInfo>> _fetchTenantsByUnitId(List<String> unitIds) async {
+    if (unitIds.isEmpty) {
+      return const {};
+    }
+
+    final client = SupabaseConfig.getClient();
+    final rows = await client
+        .from('tenants')
+        .select('id, unit_id, full_name, phone_number')
+        .inFilter('unit_id', unitIds);
+
+    final map = <String, _TenantInfo>{};
+    for (final row in rows) {
+      final unitId = (row['unit_id'] ?? '').toString();
+      if (unitId.isEmpty) {
+        continue;
+      }
+
+      map[unitId] = _TenantInfo(
+        tenantId: row['id']?.toString(),
+        fullName: row['full_name']?.toString(),
+        phoneNumber: row['phone_number']?.toString(),
+      );
+    }
+
+    return map;
   }
 
   Future<Map<String, double>> _fetchRevenueByUnitInRange(
@@ -465,27 +494,16 @@ class FinanceService {
     return value is num ? value.toDouble() : double.tryParse(value.toString()) ?? 0;
   }
 
-  Map<String, String?> _extractTenant(dynamic tenantsRaw) {
-    if (tenantsRaw is Map<String, dynamic>) {
-      return {
-        'full_name': tenantsRaw['full_name']?.toString(),
-        'phone_number': tenantsRaw['phone_number']?.toString(),
-      };
-    }
+}
 
-    if (tenantsRaw is List && tenantsRaw.isNotEmpty) {
-      final first = tenantsRaw.first;
-      if (first is Map<String, dynamic>) {
-        return {
-          'full_name': first['full_name']?.toString(),
-          'phone_number': first['phone_number']?.toString(),
-        };
-      }
-    }
+class _TenantInfo {
+  const _TenantInfo({
+    this.tenantId,
+    this.fullName,
+    this.phoneNumber,
+  });
 
-    return {
-      'full_name': null,
-      'phone_number': null,
-    };
-  }
+  final String? tenantId;
+  final String? fullName;
+  final String? phoneNumber;
 }
