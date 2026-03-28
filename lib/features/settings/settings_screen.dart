@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
 import '../../models/unit_configuration.dart';
 import '../../services/supabase_service.dart';
+import '../../services/utility_rate_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -15,7 +15,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  static const String _utilityRateKey = 'utility_rate_per_unit';
   static final NumberFormat _currencyFormat =
       NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
 
@@ -28,11 +27,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadUtilityRate() async {
-    final prefs = await SharedPreferences.getInstance();
+    final rate = await UtilityRateService.instance.getDefaultRate();
     if (!mounted) return;
 
     setState(() {
-      _utilityRate = prefs.getDouble(_utilityRateKey) ?? 0;
+      _utilityRate = rate;
     });
   }
 
@@ -41,7 +40,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       text: _utilityRate > 0 ? _utilityRate.toStringAsFixed(2) : '',
     );
 
-    await showDialog<void>(
+    final savedRate = await showDialog<double>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
@@ -70,8 +69,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onPressed: () async {
                 final value = double.tryParse(controller.text.trim());
                 if (value == null || value < 0) {
-                  if (!mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
                     SnackBar(
                       backgroundColor: Colors.red.shade700,
                       content: const Text(
@@ -83,24 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   return;
                 }
 
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.setDouble(_utilityRateKey, value);
-
-                if (!mounted) return;
-                setState(() {
-                  _utilityRate = value;
-                });
-
-                Navigator.of(dialogContext).pop();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    backgroundColor: AppTheme.primaryColor,
-                    content: Text(
-                      'Utility rate saved: ${_currencyFormat.format(value)} per unit.',
-                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                    ),
-                  ),
-                );
+                Navigator.of(dialogContext).pop(value);
               },
               child: const Text('Save'),
             ),
@@ -110,6 +91,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     controller.dispose();
+
+    if (savedRate == null) {
+      return;
+    }
+
+    await UtilityRateService.instance.setDefaultRate(savedRate);
+
+    if (!mounted) return;
+
+    setState(() {
+      _utilityRate = savedRate;
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppTheme.primaryColor,
+          content: Text(
+            'Utility rate saved: ${_currencyFormat.format(savedRate)} per unit.',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+    });
   }
 
   @override
@@ -141,6 +147,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Card(
             child: ListTile(
+              leading: const Icon(LucideIcons.droplet),
+              title: const Text(
+                'Utility Rate by Unit Type',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              subtitle: const Text(
+                'Set custom rates for Bedsitter, Studio, etc.',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              trailing: const Icon(LucideIcons.chevronRight),
+              onTap: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const UtilityRateByUnitTypeScreen(),
+                  ),
+                );
+                await _loadUtilityRate();
+              },
+            ),
+          ),
+          Card(
+            child: ListTile(
               leading: const Icon(LucideIcons.home),
               title: const Text(
                 'Edit Unit Types',
@@ -162,6 +190,194 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class UtilityRateByUnitTypeScreen extends StatefulWidget {
+  const UtilityRateByUnitTypeScreen({super.key});
+
+  @override
+  State<UtilityRateByUnitTypeScreen> createState() => _UtilityRateByUnitTypeScreenState();
+}
+
+class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScreen> {
+  static final NumberFormat _currencyFormat =
+      NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+
+  bool _isLoading = true;
+  String? _error;
+  List<UnitConfiguration> _configurations = [];
+  Map<String, double> _rateMap = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final orgId = await SupabaseService.instance.getCurrentOrganizationId();
+      if (orgId == null) {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _error = 'Organization not found.';
+        });
+        return;
+      }
+
+      final data = await SupabaseService.instance.fetchUnitConfigurationsByOrganization(orgId);
+      final map = await UtilityRateService.instance.getRateMap();
+
+      if (!mounted) return;
+      setState(() {
+        _configurations = data;
+        _rateMap = map;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _error = 'Failed to load unit types: $error';
+      });
+    }
+  }
+
+  Future<void> _editRate(UnitConfiguration config) async {
+    final key = config.unitTypeName.trim().toLowerCase();
+    final existing = _rateMap[key];
+    final controller = TextEditingController(
+      text: existing != null ? existing.toStringAsFixed(2) : '',
+    );
+
+    final saved = await showDialog<double?>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: Text(
+            'Rate: ${config.unitTypeName}',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Rate per unit',
+              prefixText: r'$ ',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(-1);
+              },
+              child: const Text('Clear'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final value = double.tryParse(controller.text.trim());
+                if (value == null || value < 0) {
+                  ScaffoldMessenger.of(dialogContext).showSnackBar(
+                    SnackBar(
+                      backgroundColor: Colors.red.shade700,
+                      content: const Text(
+                        'Enter a valid non-negative rate.',
+                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop(value);
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+
+    if (saved == null) {
+      return;
+    }
+
+    if (saved == -1) {
+      await UtilityRateService.instance.removeRateForUnitType(config.unitTypeName);
+    } else {
+      await UtilityRateService.instance.setRateForUnitType(config.unitTypeName, saved);
+    }
+
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Utility Rates by Unit Type',
+          style: TextStyle(fontFamily: AppTheme.appFontFamily),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                    ),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _configurations.length,
+                  itemBuilder: (context, index) {
+                    final item = _configurations[index];
+                    final rate = _rateMap[item.unitTypeName.trim().toLowerCase()];
+
+                    return Card(
+                      child: ListTile(
+                        leading: const Icon(LucideIcons.home),
+                        title: Text(
+                          item.unitTypeName,
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                        ),
+                        subtitle: Text(
+                          rate == null
+                              ? 'Using default utility rate'
+                              : 'Custom rate: ${_currencyFormat.format(rate)} / unit',
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                        ),
+                        trailing: const Icon(LucideIcons.pencil),
+                        onTap: () {
+                          _editRate(item);
+                        },
+                      ),
+                    );
+                  },
+                ),
     );
   }
 }

@@ -91,7 +91,11 @@ class ReceiptService {
                     pw.Text('Monthly Summary', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
                     pw.SizedBox(height: 6),
                     pw.Text('Total Paid this Month: ${fmtMoney(totalPaidThisMonth)}'),
-                    pw.Text('Remaining Balance: ${fmtMoney(remainingBalanceForMonth)}'),
+                    pw.Text(
+                      remainingBalanceForMonth >= 0
+                          ? 'Remaining Balance: ${fmtMoney(remainingBalanceForMonth)}'
+                          : 'Tenant Credit (Landlord Owes): ${fmtMoney(remainingBalanceForMonth.abs())}',
+                    ),
                   ],
                 ),
               ),

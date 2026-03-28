@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
@@ -27,6 +28,8 @@ class UnitDetailScreen extends StatefulWidget {
 
 class _UnitDetailScreenState extends State<UnitDetailScreen>
     with SingleTickerProviderStateMixin {
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+
   late Unit _unit;
   Tenant? _tenant;
   bool _isPaymentLoading = true;
@@ -71,7 +74,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
     try {
       final paymentHistory = await PaymentService.instance.fetchPaymentHistoryByUnit(_unit.id);
       final paidThisMonth = await PaymentService.instance.fetchTotalPaidThisMonth(_unit.id);
-      final balanceDue = (_unit.rentAmount - paidThisMonth).clamp(0, double.infinity).toDouble();
+      final balanceDue = (_unit.rentAmount - paidThisMonth).toDouble();
 
       if (!mounted) return;
 
@@ -111,6 +114,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
         builder: (_) => LogPaymentScreen(
           unitId: _unit.id,
           tenantId: _tenant?.id,
+          unitType: _unit.unitType,
         ),
       ),
     );
@@ -122,7 +126,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
     }
   }
 
-  String _currency(double value) => '\$${value.toStringAsFixed(2)}';
+  String _currency(double value) => _currencyFormat.format(value);
 
   Future<void> _shareReceipt(PaymentRecord payment) async {
     if (_isGeneratingReceipt) {
@@ -515,9 +519,13 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
                                   color: const Color(0xFF0D9488),
                                 ),
                                 _SummaryBadge(
-                                  title: 'Balance Due',
-                                  value: _currency(_balanceDue),
-                                  color: Colors.orange.shade700,
+                                  title: _balanceDue >= 0
+                                      ? 'Balance Due'
+                                      : 'Tenant Credit (You Owe)',
+                                  value: _currency(_balanceDue.abs()),
+                                  color: _balanceDue >= 0
+                                      ? Colors.orange.shade700
+                                      : const Color(0xFF0D9488),
                                 ),
                               ],
                             ),

@@ -1,27 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
 import '../../services/payment_service.dart';
+import '../../services/utility_rate_service.dart';
 
 class LogPaymentScreen extends StatefulWidget {
   const LogPaymentScreen({
     required this.unitId,
     required this.tenantId,
+    required this.unitType,
     super.key,
   });
 
   final String unitId;
   final String? tenantId;
+  final String? unitType;
 
   @override
   State<LogPaymentScreen> createState() => _LogPaymentScreenState();
 }
 
 class _LogPaymentScreenState extends State<LogPaymentScreen> {
-  static const String _utilityRateKey = 'utility_rate_per_unit';
-
   final _mpesaSmsController = TextEditingController();
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
@@ -54,11 +54,11 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
   }
 
   Future<void> _loadUtilityRate() async {
-    final prefs = await SharedPreferences.getInstance();
+    final rate = await UtilityRateService.instance.getRateForUnitType(widget.unitType);
     if (!mounted) return;
 
     setState(() {
-      _utilityRate = prefs.getDouble(_utilityRateKey) ?? 0;
+      _utilityRate = rate;
       _recalculateUtilityAmount();
     });
   }
@@ -352,7 +352,9 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          'Rate: ${_currencyFormat.format(_utilityRate)} per unit',
+                          widget.unitType == null || widget.unitType!.trim().isEmpty
+                              ? 'Rate: ${_currencyFormat.format(_utilityRate)} per unit'
+                              : 'Rate (${widget.unitType}): ${_currencyFormat.format(_utilityRate)} per unit',
                           style: const TextStyle(fontFamily: AppTheme.appFontFamily),
                         ),
                         onChanged: _isSaving
