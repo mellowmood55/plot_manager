@@ -83,6 +83,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _openFinanceDashboard() async {
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const FinanceDashboardScreen(),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Unable to open finance dashboard: $error',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,11 +114,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             tooltip: 'Finance',
             icon: const Icon(LucideIcons.barChart3),
             onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const FinanceDashboardScreen(),
-                ),
-              );
+              _openFinanceDashboard();
             },
           ),
           IconButton(
@@ -219,6 +236,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                           ),
                         ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                      child: Card(
+                        color: AppTheme.surfaceColor,
+                        child: ListTile(
+                          leading: const Icon(LucideIcons.barChart3),
+                          title: const Text(
+                            'Finance Dashboard',
+                            style: TextStyle(
+                              fontFamily: AppTheme.appFontFamily,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'Profit, revenue, expenses, and rent analytics',
+                            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: _openFinanceDashboard,
+                        ),
                       ),
                     ),
                     Expanded(

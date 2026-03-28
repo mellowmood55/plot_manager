@@ -206,6 +206,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
 
   Widget _buildPieChartCard() {
     final total = _rentCollected + _pendingRent;
+    final hasPieData = total > 0;
 
     return Card(
       color: AppTheme.surfaceColor,
@@ -236,40 +237,56 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                     SizedBox(
                       width: chartSize,
                       height: chartSize,
-                      child: PieChart(
-                        PieChartData(
-                          centerSpaceRadius: chartSize * 0.25,
-                          sectionsSpace: 3,
-                          sections: [
-                            PieChartSectionData(
-                              color: const Color(0xFF0D9488),
-                              value: _rentCollected,
-                              title: total <= 0
-                                  ? '0%'
-                                  : '${((_rentCollected / total) * 100).toStringAsFixed(1)}%',
-                              titleStyle: const TextStyle(
-                                fontFamily: _fontFamily,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
+                      child: hasPieData
+                          ? PieChart(
+                              PieChartData(
+                                centerSpaceRadius: chartSize * 0.25,
+                                sectionsSpace: 3,
+                                sections: [
+                                  PieChartSectionData(
+                                    color: const Color(0xFF0D9488),
+                                    value: _rentCollected,
+                                    title:
+                                        '${((_rentCollected / total) * 100).toStringAsFixed(1)}%',
+                                    titleStyle: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  PieChartSectionData(
+                                    color: const Color(0xFFF97316),
+                                    value: _pendingRent,
+                                    title: '${((_pendingRent / total) * 100).toStringAsFixed(1)}%',
+                                    titleStyle: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : Container(
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFF334155),
+                                  width: 2,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: const Text(
+                                'No rent\ndata',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: _fontFamily,
+                                  color: Color(0xFF94A3B8),
+                                ),
                               ),
                             ),
-                            PieChartSectionData(
-                              color: const Color(0xFFF97316),
-                              value: _pendingRent,
-                              title: total <= 0
-                                  ? '0%'
-                                  : '${((_pendingRent / total) * 100).toStringAsFixed(1)}%',
-                              titleStyle: const TextStyle(
-                                fontFamily: _fontFamily,
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                     ConstrainedBox(
                       constraints: const BoxConstraints(minWidth: 210, maxWidth: 280),
@@ -338,6 +355,22 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   }
 
   Widget _buildBarChartCard() {
+    if (_trend.isEmpty) {
+      return Card(
+        color: AppTheme.surfaceColor,
+        child: const Padding(
+          padding: EdgeInsets.all(16),
+          child: Text(
+            'No trend data available yet.',
+            style: TextStyle(
+              fontFamily: _fontFamily,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+    }
+
     final maxY = _resolveBarMaxY();
 
     return Card(
