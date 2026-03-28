@@ -4,6 +4,7 @@ import '../../core/theme.dart';
 import '../../core/supabase_config.dart';
 import '../../models/property.dart';
 import '../../services/supabase_service.dart';
+import '../maintenance/screens/maintenance_list_screen.dart';
 import '../property/screens/add_property_screen.dart';
 import '../property/screens/property_detail_screen.dart';
 import '../org/create_org_screen.dart';
@@ -87,6 +88,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Plot Manager'),
         actions: [
+          IconButton(
+            tooltip: 'Maintenance',
+            icon: const Icon(LucideIcons.wrench),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const MaintenanceListScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Settings',
             icon: const Icon(LucideIcons.cog),

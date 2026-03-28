@@ -3,6 +3,7 @@ import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme.dart';
 import '../../../features/finance/log_payment_screen.dart';
+import '../../../features/maintenance/screens/maintenance_history_tab.dart';
 import '../../../models/payment.dart';
 import '../../../models/tenant.dart';
 import '../../../models/unit.dart';
@@ -24,7 +25,8 @@ class UnitDetailScreen extends StatefulWidget {
   State<UnitDetailScreen> createState() => _UnitDetailScreenState();
 }
 
-class _UnitDetailScreenState extends State<UnitDetailScreen> {
+class _UnitDetailScreenState extends State<UnitDetailScreen>
+    with SingleTickerProviderStateMixin {
   late Unit _unit;
   Tenant? _tenant;
   bool _isPaymentLoading = true;
@@ -33,6 +35,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
   double _totalPaidThisMonth = 0;
   double _balanceDue = 0;
   bool _isGeneratingReceipt = false;
+  late TabController _tabController;
 
   static const Map<String, (int min, int max)> _fallbackOccupancyRules = {
     'bedsitter': (1, 1),
@@ -49,7 +52,14 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
     super.initState();
     _unit = widget.unit;
     _tenant = widget.tenant;
+    _tabController = TabController(length: 2, vsync: this);
     _loadPaymentData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPaymentData() async {
@@ -397,191 +407,206 @@ class _UnitDetailScreenState extends State<UnitDetailScreen> {
           _unit.name,
           style: const TextStyle(fontFamily: AppTheme.appFontFamily),
         ),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'Overview'),
+            Tab(text: 'Maintenance'),
+          ],
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (occupied && _tenant != null)
-                SizedBox(
-                  width: screenWidth,
-                  child: Card(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Tenant Profile',
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontFamily: AppTheme.appFontFamily,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                          ),
-                          const SizedBox(height: 16),
-                          _InfoRow(label: 'Name', value: _tenant!.name),
-                          _PhoneRow(
-                            label: 'Phone',
-                            value: _tenant!.phoneNumber,
-                            onTap: () => _launchDialer(_tenant!.phoneNumber),
-                          ),
-                          _InfoRow(label: 'National ID', value: _tenant!.nationalId),
-                          _InfoRow(
-                            label: 'Occupants',
-                            value: _tenant!.occupants.toString(),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              else
-                ElevatedButton.icon(
-                  onPressed: _showAddTenantDialog,
-                  icon: const Icon(Icons.person_add_alt_1),
-                  label: const Text(
-                    '+ Add Tenant',
-                    style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                  ),
-                ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: screenWidth,
-                child: Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                'Payment History',
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Overview Tab
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (occupied && _tenant != null)
+                    SizedBox(
+                      width: screenWidth,
+                      child: Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Tenant Profile',
                                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                                       fontFamily: AppTheme.appFontFamily,
                                       fontWeight: FontWeight.bold,
                                     ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            ElevatedButton(
-                              onPressed: _openLogPaymentScreen,
-                              child: const Text(
-                                'Log Payment',
-                                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                              const SizedBox(height: 16),
+                              _InfoRow(label: 'Name', value: _tenant!.name),
+                              _PhoneRow(
+                                label: 'Phone',
+                                value: _tenant!.phoneNumber,
+                                onTap: () => _launchDialer(_tenant!.phoneNumber),
                               ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: [
-                            _SummaryBadge(
-                              title: 'Total Paid this Month',
-                              value: _currency(_totalPaidThisMonth),
-                              color: const Color(0xFF0D9488),
-                            ),
-                            _SummaryBadge(
-                              title: 'Balance Due',
-                              value: _currency(_balanceDue),
-                              color: Colors.orange.shade700,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 14),
-                        if (_isPaymentLoading)
-                          const Center(child: CircularProgressIndicator())
-                        else if (_paymentError != null)
-                          Text(
-                            _paymentError!,
-                            style: const TextStyle(
-                              fontFamily: AppTheme.appFontFamily,
-                              color: Colors.redAccent,
-                            ),
-                          )
-                        else if (_payments.isEmpty)
-                          const Text(
-                            'No payments recorded yet.',
-                            style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                          )
-                        else
-                          SizedBox(
-                            width: screenWidth,
-                            child: ListView.separated(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              itemBuilder: (context, index) {
-                                final payment = _payments[index];
-                                final month = payment.paymentDate.month.toString().padLeft(2, '0');
-                                final day = payment.paymentDate.day.toString().padLeft(2, '0');
-                                final dateLabel = '${payment.paymentDate.year}-$month-$day';
-
-                                return ListTile(
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(
-                                    _currency(payment.amountPaid),
-                                    style: const TextStyle(
-                                      fontFamily: AppTheme.appFontFamily,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  subtitle: Text(
-                                    '${payment.paymentMethod}  •  $dateLabel',
-                                    style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                                  ),
-                                  trailing: SizedBox(
-                                    width: 132,
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            payment.transactionRef ?? '-',
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            textAlign: TextAlign.right,
-                                            style: const TextStyle(
-                                              fontFamily: AppTheme.appFontFamily,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          tooltip: 'Share Receipt',
-                                          icon: const Icon(Icons.share),
-                                          onPressed: _isGeneratingReceipt
-                                              ? null
-                                              : () => _shareReceipt(payment),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                              separatorBuilder: (_, __) => const Divider(height: 1),
-                              itemCount: _payments.length,
-                            ),
+                              _InfoRow(label: 'National ID', value: _tenant!.nationalId),
+                              _InfoRow(
+                                label: 'Occupants',
+                                value: _tenant!.occupants.toString(),
+                              ),
+                            ],
                           ),
-                      ],
+                        ),
+                      ),
+                    )
+                  else
+                    ElevatedButton.icon(
+                      onPressed: _showAddTenantDialog,
+                      icon: const Icon(Icons.person_add_alt_1),
+                      label: const Text(
+                        '+ Add Tenant',
+                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: screenWidth,
+                    child: Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'Payment History',
+                                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                          fontFamily: AppTheme.appFontFamily,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: _openLogPaymentScreen,
+                                  child: const Text(
+                                    'Log Payment',
+                                    style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
+                              children: [
+                                _SummaryBadge(
+                                  title: 'Total Paid this Month',
+                                  value: _currency(_totalPaidThisMonth),
+                                  color: const Color(0xFF0D9488),
+                                ),
+                                _SummaryBadge(
+                                  title: 'Balance Due',
+                                  value: _currency(_balanceDue),
+                                  color: Colors.orange.shade700,
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            if (_isPaymentLoading)
+                              const Center(child: CircularProgressIndicator())
+                            else if (_paymentError != null)
+                              Text(
+                                _paymentError!,
+                                style: const TextStyle(
+                                  fontFamily: AppTheme.appFontFamily,
+                                  color: Colors.redAccent,
+                                ),
+                              )
+                            else if (_payments.isEmpty)
+                              const Text(
+                                'No payments recorded yet.',
+                                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                              )
+                            else
+                              SizedBox(
+                                width: screenWidth,
+                                child: ListView.separated(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemBuilder: (context, index) {
+                                    final payment = _payments[index];
+                                    final month = payment.paymentDate.month.toString().padLeft(2, '0');
+                                    final day = payment.paymentDate.day.toString().padLeft(2, '0');
+                                    final dateLabel = '${payment.paymentDate.year}-$month-$day';
+
+                                    return ListTile(
+                                      dense: true,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: Text(
+                                        _currency(payment.amountPaid),
+                                        style: const TextStyle(
+                                          fontFamily: AppTheme.appFontFamily,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      subtitle: Text(
+                                        '${payment.paymentMethod}  •  $dateLabel',
+                                        style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                                      ),
+                                      trailing: SizedBox(
+                                        width: 132,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.end,
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                payment.transactionRef ?? '-',
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                textAlign: TextAlign.right,
+                                                style: const TextStyle(
+                                                  fontFamily: AppTheme.appFontFamily,
+                                                ),
+                                              ),
+                                            ),
+                                            IconButton(
+                                              tooltip: 'Share Receipt',
+                                              icon: const Icon(Icons.share),
+                                              onPressed: _isGeneratingReceipt
+                                                  ? null
+                                                  : () => _shareReceipt(payment),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  separatorBuilder: (_, __) => const Divider(height: 1),
+                                  itemCount: _payments.length,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          // Maintenance Tab
+          MaintenanceHistoryTab(unitId: _unit.id),
+        ],
       ),
     );
   }
