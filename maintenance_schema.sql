@@ -30,6 +30,7 @@ ALTER TABLE public.maintenance_requests ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policy: Landlords can only view/manage requests for units in their organization
 -- Join path: maintenance_requests.unit_id -> units.id -> properties.id -> organizations.id
+-- Organizations.created_by stores the landlord's auth user ID
 CREATE POLICY "Select maintenance requests - landlord organization access"
   ON public.maintenance_requests
   FOR SELECT
@@ -40,7 +41,7 @@ CREATE POLICY "Select maintenance requests - landlord organization access"
         INNER JOIN public.properties p ON u.property_id = p.id
         INNER JOIN public.organizations o ON p.organization_id = o.id
       WHERE u.id = maintenance_requests.unit_id
-        AND o.landlord_id = auth.uid()
+        AND o.created_by = auth.uid()
     )
   );
 
@@ -54,7 +55,7 @@ CREATE POLICY "Insert maintenance requests - landlord organization access"
         INNER JOIN public.properties p ON u.property_id = p.id
         INNER JOIN public.organizations o ON p.organization_id = o.id
       WHERE u.id = unit_id
-        AND o.landlord_id = auth.uid()
+        AND o.created_by = auth.uid()
     )
   );
 
@@ -68,7 +69,7 @@ CREATE POLICY "Update maintenance requests - landlord organization access"
         INNER JOIN public.properties p ON u.property_id = p.id
         INNER JOIN public.organizations o ON p.organization_id = o.id
       WHERE u.id = maintenance_requests.unit_id
-        AND o.landlord_id = auth.uid()
+        AND o.created_by = auth.uid()
     )
   )
   WITH CHECK (
@@ -77,7 +78,7 @@ CREATE POLICY "Update maintenance requests - landlord organization access"
         INNER JOIN public.properties p ON u.property_id = p.id
         INNER JOIN public.organizations o ON p.organization_id = o.id
       WHERE u.id = unit_id
-        AND o.landlord_id = auth.uid()
+        AND o.created_by = auth.uid()
     )
   );
 
@@ -91,7 +92,7 @@ CREATE POLICY "Delete maintenance requests - landlord organization access"
         INNER JOIN public.properties p ON u.property_id = p.id
         INNER JOIN public.organizations o ON p.organization_id = o.id
       WHERE u.id = maintenance_requests.unit_id
-        AND o.landlord_id = auth.uid()
+        AND o.created_by = auth.uid()
     )
   );
 
