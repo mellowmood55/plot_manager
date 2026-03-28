@@ -1,9 +1,11 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 
 import '../../../core/theme.dart';
 import '../../../services/finance_service.dart';
+import 'arrears_report_screen.dart';
 
 class FinanceDashboardScreen extends StatefulWidget {
   const FinanceDashboardScreen({super.key});
@@ -26,9 +28,19 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   double _revenue = 0;
   double _expenses = 0;
   double _netProfit = 0;
+  double _taxLiability = 0;
 
   double _rentCollected = 0;
   double _pendingRent = 0;
+  PotentialIncomeSnapshot _potentialIncome = const PotentialIncomeSnapshot(
+    totalUnits: 0,
+    occupiedUnits: 0,
+    monthlyRentTemplate: 0,
+    potentialIncome: 0,
+    actualRevenue: 0,
+    potentialLoss: 0,
+    occupancyRate: 0,
+  );
 
   List<MonthlyFinancePoint> _trend = const [];
 
@@ -51,6 +63,9 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
       final expenses = await _financeService.getExpensesForRange(_selectedRange);
       final snapshot = await _financeService.getRentCollectionSnapshot(_selectedRange);
       final trend = await _financeService.getSixMonthTrend();
+        final taxLiability = await _financeService.getCurrentMonthMriTax();
+        final potentialIncome =
+          await _financeService.getPotentialIncomeSnapshot(range: _selectedRange);
 
       if (!mounted) return;
 
@@ -58,8 +73,10 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
         _revenue = revenue;
         _expenses = expenses;
         _netProfit = revenue - expenses;
+        _taxLiability = taxLiability;
         _rentCollected = snapshot.collected;
         _pendingRent = snapshot.pending;
+        _potentialIncome = potentialIncome;
         _trend = trend;
         _isLoading = false;
       });
@@ -163,6 +180,109 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTaxLiabilityCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFACC15),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          const Icon(LucideIcons.alertTriangle, color: Colors.black),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Tax Liability (KRA MRI 10%)',
+                  style: TextStyle(
+                    fontFamily: _fontFamily,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _currencyFormat.format(_taxLiability),
+                  style: const TextStyle(
+                    fontFamily: _fontFamily,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.black,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPotentialIncomeCard() {
+    final occupancyPercent = (_potentialIncome.occupancyRate * 100).clamp(0, 100).toDouble();
+
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Potential Income',
+              style: TextStyle(
+                fontFamily: _fontFamily,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Potential: ${_currencyFormat.format(_potentialIncome.potentialIncome)}',
+              style: const TextStyle(fontFamily: _fontFamily),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Actual Revenue: ${_currencyFormat.format(_potentialIncome.actualRevenue)}',
+              style: const TextStyle(fontFamily: _fontFamily),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Income Gap: ${_currencyFormat.format(_potentialIncome.potentialLoss)}',
+              style: const TextStyle(
+                fontFamily: _fontFamily,
+                color: Color(0xFFFACC15),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: _potentialIncome.occupancyRate,
+                minHeight: 10,
+                backgroundColor: const Color(0xFF334155),
+                color: const Color(0xFF0D9488),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Current Occupancy: ${occupancyPercent.toStringAsFixed(0)}%',
+              style: const TextStyle(
+                fontFamily: _fontFamily,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -601,10 +721,39 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                         ),
                         const SizedBox(height: 14),
                         _buildNetProfitCard(),
+                        const SizedBox(height: 12),
+                        _buildTaxLiabilityCard(),
                         const SizedBox(height: 16),
                         _buildPieChartCard(),
                         const SizedBox(height: 16),
+                        _buildPotentialIncomeCard(),
+                        const SizedBox(height: 16),
                         _buildBarChartCard(),
+                        const SizedBox(height: 16),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const ArrearsReportScreen(),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFACC15),
+                              foregroundColor: Colors.black,
+                            ),
+                            icon: const Icon(LucideIcons.walletCards),
+                            label: const Text(
+                              'Open Debt Aging Report',
+                              style: TextStyle(
+                                fontFamily: _fontFamily,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

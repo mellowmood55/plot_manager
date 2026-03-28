@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
 import '../../services/payment_service.dart';
@@ -18,21 +20,59 @@ class LogPaymentScreen extends StatefulWidget {
 }
 
 class _LogPaymentScreenState extends State<LogPaymentScreen> {
+  static const String _utilityRateKey = 'utility_rate_per_unit';
+
   final _mpesaSmsController = TextEditingController();
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
+  final _waterPreviousController = TextEditingController();
+  final _waterCurrentController = TextEditingController();
   final List<String> _methods = const ['Cash', 'Mobile Money', 'Bank Transfer', 'Card'];
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
 
   DateTime _paymentDate = DateTime.now();
   String _selectedMethod = 'Cash';
   bool _isSaving = false;
+  bool _includeUtility = false;
+  double _utilityRate = 0;
+  double _utilityAmount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUtilityRate();
+  }
 
   @override
   void dispose() {
     _mpesaSmsController.dispose();
     _amountController.dispose();
     _referenceController.dispose();
+    _waterPreviousController.dispose();
+    _waterCurrentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadUtilityRate() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
+    setState(() {
+      _utilityRate = prefs.getDouble(_utilityRateKey) ?? 0;
+      _recalculateUtilityAmount();
+    });
+  }
+
+  void _recalculateUtilityAmount() {
+    final previous = double.tryParse(_waterPreviousController.text.trim());
+    final current = double.tryParse(_waterCurrentController.text.trim());
+
+    if (!_includeUtility || previous == null || current == null || current < previous) {
+      _utilityAmount = 0;
+      return;
+    }
+
+    _utilityAmount = (current - previous) * _utilityRate;
   }
 
   void _onMpesaSmsChanged(String text) {
@@ -76,6 +116,8 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
 
   Future<void> _savePayment() async {
     final amount = double.tryParse(_amountController.text.trim());
+    final waterPrevious = double.tryParse(_waterPreviousController.text.trim());
+    final waterCurrent = double.tryParse(_waterCurrentController.text.trim());
 
     if (amount == null || amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -90,6 +132,36 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
       return;
     }
 
+    if (_includeUtility) {
+      if (waterPrevious == null || waterCurrent == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: const Text(
+              'Enter valid previous and current water readings.',
+              style: TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+          ),
+        );
+        return;
+      }
+
+      if (waterCurrent < waterPrevious) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red.shade700,
+            content: const Text(
+              'Current water reading must be greater than or equal to previous reading.',
+              style: TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    final totalAmount = amount + (_includeUtility ? _utilityAmount : 0);
+
     setState(() {
       _isSaving = true;
     });
@@ -98,10 +170,13 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
       await PaymentService.instance.logPayment(
         unitId: widget.unitId,
         tenantId: widget.tenantId,
-        amountPaid: amount,
+        amountPaid: totalAmount,
         transactionRef: _referenceController.text,
         paymentMethod: _selectedMethod,
         paymentDate: _paymentDate,
+        waterReadingPrevious: _includeUtility ? waterPrevious : null,
+        waterReadingCurrent: _includeUtility ? waterCurrent : null,
+        utilityAmount: _includeUtility ? _utilityAmount : null,
       );
 
       if (!mounted) return;
@@ -252,6 +327,80 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                             _selectedMethod = value;
                           });
                         },
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceColor,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFACC15), width: 1.2),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        value: _includeUtility,
+                        activeColor: const Color(0xFFFACC15),
+                        title: const Text(
+                          'Utility Billing (Optional)',
+                          style: TextStyle(
+                            fontFamily: AppTheme.appFontFamily,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFACC15),
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Rate: ${_currencyFormat.format(_utilityRate)} per unit',
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                        ),
+                        onChanged: _isSaving
+                            ? null
+                            : (enabled) {
+                                setState(() {
+                                  _includeUtility = enabled;
+                                  _recalculateUtilityAmount();
+                                });
+                              },
+                      ),
+                      if (_includeUtility) ...[
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _waterPreviousController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) {
+                            setState(_recalculateUtilityAmount);
+                          },
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                          decoration: const InputDecoration(
+                            labelText: 'Water Reading Previous',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        TextField(
+                          controller: _waterCurrentController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged: (_) {
+                            setState(_recalculateUtilityAmount);
+                          },
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                          decoration: const InputDecoration(
+                            labelText: 'Water Reading Current',
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Utility Charge: ${_currencyFormat.format(_utilityAmount)}',
+                          style: const TextStyle(
+                            fontFamily: AppTheme.appFontFamily,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFACC15),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 22),
                 ElevatedButton(

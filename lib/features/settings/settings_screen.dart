@@ -1,12 +1,116 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme.dart';
 import '../../models/unit_configuration.dart';
 import '../../services/supabase_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  static const String _utilityRateKey = 'utility_rate_per_unit';
+  static final NumberFormat _currencyFormat =
+      NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+
+  double _utilityRate = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUtilityRate();
+  }
+
+  Future<void> _loadUtilityRate() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+
+    setState(() {
+      _utilityRate = prefs.getDouble(_utilityRateKey) ?? 0;
+    });
+  }
+
+  Future<void> _showUtilityRateDialog() async {
+    final controller = TextEditingController(
+      text: _utilityRate > 0 ? _utilityRate.toStringAsFixed(2) : '',
+    );
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          backgroundColor: AppTheme.surfaceColor,
+          title: const Text(
+            'Utility Billing Rate',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+          content: TextField(
+            controller: controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Rate per unit',
+              prefixText: r'$ ',
+              hintText: 'Enter water rate per unit',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final value = double.tryParse(controller.text.trim());
+                if (value == null || value < 0) {
+                  if (!mounted) return;
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      backgroundColor: Colors.red.shade700,
+                      content: const Text(
+                        'Please enter a valid utility rate.',
+                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                      ),
+                    ),
+                  );
+                  return;
+                }
+
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setDouble(_utilityRateKey, value);
+
+                if (!mounted) return;
+                setState(() {
+                  _utilityRate = value;
+                });
+
+                Navigator.of(dialogContext).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    backgroundColor: AppTheme.primaryColor,
+                    content: Text(
+                      'Utility rate saved: ${_currencyFormat.format(value)} per unit.',
+                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+
+    controller.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +124,21 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          Card(
+            child: ListTile(
+              leading: const Icon(LucideIcons.droplets),
+              title: const Text(
+                'Utility Billing Rate',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              subtitle: Text(
+                'Current: ${_currencyFormat.format(_utilityRate)} per unit',
+                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              trailing: const Icon(LucideIcons.chevronRight),
+              onTap: _showUtilityRateDialog,
+            ),
+          ),
           Card(
             child: ListTile(
               leading: const Icon(LucideIcons.home),

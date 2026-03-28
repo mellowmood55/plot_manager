@@ -69,6 +69,9 @@ class PaymentService {
     required String transactionRef,
     required String paymentMethod,
     required DateTime paymentDate,
+    double? waterReadingPrevious,
+    double? waterReadingCurrent,
+    double? utilityAmount,
   }) async {
     final client = SupabaseConfig.getClient();
 
@@ -79,6 +82,9 @@ class PaymentService {
       'transaction_ref': transactionRef.trim().isEmpty ? null : transactionRef.trim(),
       'payment_method': paymentMethod,
       'payment_date': paymentDate.toIso8601String().split('T').first,
+      'water_reading_previous': waterReadingPrevious,
+      'water_reading_current': waterReadingCurrent,
+      'utility_amount': utilityAmount,
     });
   }
 
@@ -87,7 +93,8 @@ class PaymentService {
 
     final rows = await client
         .from('payments')
-        .select('id, unit_id, tenant_id, amount_paid, transaction_ref, payment_method, payment_date')
+      .select(
+        'id, unit_id, tenant_id, amount_paid, transaction_ref, payment_method, payment_date, water_reading_previous, water_reading_current, utility_amount')
         .eq('unit_id', unitId)
         .order('payment_date', ascending: false)
         .order('created_at', ascending: false);
