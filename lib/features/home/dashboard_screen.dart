@@ -4,7 +4,6 @@ import '../../core/theme.dart';
 import '../../core/supabase_config.dart';
 import '../../models/property.dart';
 import '../../services/supabase_service.dart';
-import '../reports/screens/finance_dashboard_screen.dart';
 import '../maintenance/screens/maintenance_list_screen.dart';
 import '../property/screens/add_property_screen.dart';
 import '../property/screens/property_detail_screen.dart';
@@ -85,11 +84,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _openFinanceDashboard() async {
     try {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => const FinanceDashboardScreen(),
-        ),
-      );
+      await Navigator.of(context).pushNamed('/finance');
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
