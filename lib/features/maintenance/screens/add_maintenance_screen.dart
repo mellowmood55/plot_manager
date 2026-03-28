@@ -1,7 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/contact.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/contractor.dart';
@@ -10,8 +13,13 @@ import '../../../services/maintenance_service.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
   final String? unitId;
+  final MaintenanceRequest? initialRequest;
 
-  const AddMaintenanceScreen({super.key, this.unitId});
+  const AddMaintenanceScreen({
+    super.key,
+    this.unitId,
+    this.initialRequest,
+  });
 
   @override
   State<AddMaintenanceScreen> createState() => _AddMaintenanceScreenState();
@@ -23,6 +31,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   final _descriptionController = TextEditingController();
   final _estimatedCostController = TextEditingController();
   final _categoryController = TextEditingController(text: 'General');
+  final _contractorNameController = TextEditingController();
+  final _contractorPhoneController = TextEditingController();
+  final _contractorSpecialtyController = TextEditingController(text: 'General Handyman');
 
   MaintenancePriority _selectedPriority = MaintenancePriority.medium;
   File? _selectedImage;
@@ -32,6 +43,17 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   bool _isContractorsLoading = true;
   List<Contractor> _contractors = [];
   String? _selectedTemplateLabel;
+  String _locationScope = 'unscoped';
+  Set<String> _selectedContractorRoles = {};
+
+  static const List<String> _roleOptions = [
+    'Plumbing',
+    'Electrical',
+    'Painting',
+    'Carpentry',
+    'Masonry',
+    'General Handyman',
+  ];
 
   static const List<_MaintenanceTemplate> _templates = [
     _MaintenanceTemplate(
@@ -58,7 +80,44 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   void initState() {
     super.initState();
     _selectedUnitId = widget.unitId;
+    _applyInitialRequestIfAny();
     _loadContractors();
+    _recoverLostImageData();
+  }
+
+  Future<void> _recoverLostImageData() async {
+    try {
+      final picker = ImagePicker();
+      final lostData = await picker.retrieveLostData();
+      if (!mounted) return;
+
+      if (!lostData.isEmpty && lostData.file != null) {
+        setState(() {
+          _selectedImage = File(lostData.file!.path);
+        });
+      }
+    } catch (_) {
+      // Ignore lost data recovery failures; normal picker flow still works.
+    }
+  }
+
+  void _applyInitialRequestIfAny() {
+    final existing = widget.initialRequest;
+    if (existing == null) {
+      return;
+    }
+
+    _selectedUnitId = existing.unitId;
+    _titleController.text = existing.title;
+    _descriptionController.text = existing.description;
+    _categoryController.text = existing.category;
+    _selectedPriority = existing.priority;
+    _estimatedCostController.text = existing.estimatedCost?.toStringAsFixed(2) ?? '';
+    _selectedContractorId = existing.contractorId;
+    _contractorNameController.text = existing.contractor?.name ?? '';
+    _contractorPhoneController.text = existing.contractor?.phone ?? '';
+    _contractorSpecialtyController.text = existing.contractor?.specialty ?? _categoryController.text;
+    _selectedContractorRoles = _parseRoles(_contractorSpecialtyController.text);
   }
 
   @override
@@ -67,6 +126,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _descriptionController.dispose();
     _estimatedCostController.dispose();
     _categoryController.dispose();
+    _contractorNameController.dispose();
+    _contractorPhoneController.dispose();
+    _contractorSpecialtyController.dispose();
     super.dispose();
   }
 
@@ -76,10 +138,28 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     });
 
     try {
-      final contractors = await MaintenanceService.instance.getContractors();
+      var resolvedScope = 'unscoped';
+      if (_selectedUnitId != null && _selectedUnitId!.isNotEmpty) {
+        final unitScope = await MaintenanceService.instance.getLocationScopeByUnit(_selectedUnitId!);
+        resolvedScope = unitScope ?? 'unscoped';
+      }
+
+      final contractors = await MaintenanceService.instance.getContractors(
+        locationScope: resolvedScope,
+      );
       if (!mounted) return;
       setState(() {
+        _locationScope = resolvedScope;
         _contractors = contractors;
+        if (_selectedContractorId != null) {
+          final selected = _contractors.where((c) => c.id == _selectedContractorId).toList();
+          if (selected.isNotEmpty) {
+            _contractorNameController.text = selected.first.name;
+            _contractorPhoneController.text = selected.first.phone;
+            _contractorSpecialtyController.text = selected.first.specialty;
+            _selectedContractorRoles = _parseRoles(selected.first.specialty);
+          }
+        }
         _isContractorsLoading = false;
       });
     } catch (error) {
@@ -108,13 +188,120 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _titleController.text = template.title;
       _categoryController.text = template.category;
       _estimatedCostController.text = template.estimatedCost.toStringAsFixed(2);
+      if (_contractorSpecialtyController.text.trim().isEmpty ||
+          _contractorSpecialtyController.text == 'General Handyman') {
+        _contractorSpecialtyController.text = template.category;
+        _selectedContractorRoles = _parseRoles(template.category);
+      }
     });
+  }
+
+  Set<String> _parseRoles(String raw) {
+    return raw
+        .split(RegExp(r'[,/;|]'))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet();
+  }
+
+  void _syncSpecialtyFromRoles() {
+    if (_selectedContractorRoles.isEmpty) {
+      _contractorSpecialtyController.text = 'General Handyman';
+      return;
+    }
+    _contractorSpecialtyController.text = _selectedContractorRoles.join(', ');
+  }
+
+  List<Contractor> get _filteredContractors {
+    final normalizedCategory = _categoryController.text.trim();
+    if (normalizedCategory.isEmpty) {
+      return _contractors;
+    }
+
+    final matches = _contractors
+        .where((contractor) => contractor.matchesCategory(normalizedCategory))
+        .toList();
+    final others = _contractors
+        .where((contractor) => !contractor.matchesCategory(normalizedCategory))
+        .toList();
+
+    return [...matches, ...others];
+  }
+
+  List<Contractor> get _uniqueFilteredContractors {
+    final seen = <String>{};
+    final unique = <Contractor>[];
+
+    for (final contractor in _filteredContractors) {
+      if (seen.add(contractor.id)) {
+        unique.add(contractor);
+      }
+    }
+
+    return unique;
+  }
+
+  Future<void> _pickContractorFromContacts() async {
+    try {
+      final permission = await Permission.contacts.request();
+      if (!permission.isGranted) {
+        if (permission.isPermanentlyDenied) {
+          await openAppSettings();
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.redAccent,
+            content: Text(
+              'Contacts permission is required to pick a contractor.',
+              style: TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+          ),
+        );
+        return;
+      }
+
+      final Contact? contact = await FlutterContacts.openExternalPick();
+      if (contact == null) {
+        return;
+      }
+
+      final phone = contact.phones.isNotEmpty
+          ? contact.phones.first.number.trim()
+          : '';
+
+      if (!mounted) return;
+      setState(() {
+        _contractorNameController.text = contact.displayName;
+        _contractorPhoneController.text = phone;
+        if (_contractorSpecialtyController.text.trim().isEmpty) {
+          _contractorSpecialtyController.text = _categoryController.text.trim().isEmpty
+              ? 'General Handyman'
+              : _categoryController.text.trim();
+          _selectedContractorRoles = _parseRoles(_contractorSpecialtyController.text);
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Failed to load contacts: $error',
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _pickImage() async {
     try {
       final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(source: ImageSource.camera);
+      final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
       if (pickedFile != null && mounted) {
         setState(() {
@@ -192,22 +379,52 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           ? null
           : double.tryParse(_estimatedCostController.text);
 
-      await MaintenanceService.instance.createMaintenanceRequest(
-        unitId: _selectedUnitId!,
-        title: _titleController.text.trim(),
-        description: _descriptionController.text.trim(),
-        category: _categoryController.text.trim(),
-        priority: _selectedPriority,
-        estimatedCost: estimatedCost,
-        imageUrl: imageUrl,
-        contractorId: _selectedContractorId,
-      );
+      String? contractorId = _selectedContractorId;
+      if ((_contractorNameController.text.trim().isNotEmpty ||
+              _contractorPhoneController.text.trim().isNotEmpty) &&
+          contractorId == null) {
+        contractorId = await MaintenanceService.instance.findOrCreateContractor(
+          name: _contractorNameController.text,
+          phone: _contractorPhoneController.text,
+          specialty: _contractorSpecialtyController.text,
+          locationScope: _locationScope,
+        );
+
+        if (!mounted) return;
+      }
+
+      final existing = widget.initialRequest;
+      if (existing == null) {
+        await MaintenanceService.instance.createMaintenanceRequest(
+          unitId: _selectedUnitId!,
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          category: _categoryController.text.trim(),
+          priority: _selectedPriority,
+          estimatedCost: estimatedCost,
+          imageUrl: imageUrl,
+          contractorId: contractorId,
+        );
+      } else {
+        await MaintenanceService.instance.updateMaintenanceRequest(
+          requestId: existing.id,
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim(),
+          category: _categoryController.text.trim(),
+          priority: _selectedPriority,
+          estimatedCost: estimatedCost,
+          imageUrl: imageUrl ?? existing.imageUrl,
+          contractorId: contractorId,
+        );
+      }
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Maintenance request created successfully!',
+            existing == null
+                ? 'Maintenance request created successfully!'
+                : 'Maintenance request updated successfully!',
             style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
               color: Colors.white,
@@ -244,9 +461,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Report Maintenance Issue',
-          style: TextStyle(fontFamily: AppTheme.appFontFamily),
+        title: Text(
+          widget.initialRequest == null ? 'Report Maintenance Issue' : 'Edit Maintenance Issue',
+          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
         ),
         elevation: 0,
       ),
@@ -311,6 +528,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   contentPadding: const EdgeInsets.all(16),
                 ),
                 style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                onChanged: (_) {
+                  setState(() {});
+                },
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'Category is required';
@@ -359,7 +579,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String?>(
-                initialValue: _selectedContractorId,
+                initialValue: _selectedContractorId != null &&
+                        _uniqueFilteredContractors.any((c) => c.id == _selectedContractorId)
+                    ? _selectedContractorId
+                    : null,
                 decoration: InputDecoration(
                   labelText: 'Assign Contractor',
                   border: OutlineInputBorder(
@@ -375,7 +598,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       style: TextStyle(fontFamily: AppTheme.appFontFamily),
                     ),
                   ),
-                  ..._contractors.map((contractor) {
+                  ..._uniqueFilteredContractors.map((contractor) {
                     return DropdownMenuItem<String?>(
                       value: contractor.id,
                       child: Text(
@@ -389,7 +612,16 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 onChanged: _isContractorsLoading
                     ? null
                     : (value) {
-                        setState(() => _selectedContractorId = value);
+                        setState(() {
+                          _selectedContractorId = value;
+                          final selected = _contractors.where((c) => c.id == value).toList();
+                          if (selected.isNotEmpty) {
+                            _contractorNameController.text = selected.first.name;
+                            _contractorPhoneController.text = selected.first.phone;
+                            _contractorSpecialtyController.text = selected.first.specialty;
+                            _selectedContractorRoles = _parseRoles(selected.first.specialty);
+                          }
+                        });
                       },
               ),
               if (_isContractorsLoading)
@@ -397,6 +629,120 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   padding: EdgeInsets.only(top: 8),
                   child: LinearProgressIndicator(),
                 ),
+              if (!_isContractorsLoading)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    _locationScope == 'unscoped'
+                        ? 'Contractors: location not set, showing unscoped list.'
+                        : 'Contractors scoped to this location.',
+                    style: const TextStyle(
+                      fontFamily: AppTheme.appFontFamily,
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _contractorNameController,
+                      decoration: InputDecoration(
+                        labelText: 'Contractor Name',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.all(16),
+                      ),
+                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: _isUploading ? null : _pickContractorFromContacts,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                    ),
+                    child: const Text(
+                      'Pick from Device Contacts',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: AppTheme.appFontFamily,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _contractorPhoneController,
+                decoration: InputDecoration(
+                  labelText: 'Contractor Phone',
+                  hintText: '+2547...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                keyboardType: TextInputType.phone,
+                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _contractorSpecialtyController,
+                decoration: InputDecoration(
+                  labelText: 'Contractor Specialty',
+                  hintText: 'Plumber, Electrician, Painter',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedContractorRoles = _parseRoles(value);
+                  });
+                },
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Contractor Roles (supports multiple)',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontFamily: AppTheme.appFontFamily,
+                      color: Colors.white70,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _roleOptions.map((role) {
+                  final selected = _selectedContractorRoles.contains(role);
+                  return FilterChip(
+                    selected: selected,
+                    label: Text(
+                      role,
+                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                    ),
+                    onSelected: (isSelected) {
+                      setState(() {
+                        if (isSelected) {
+                          _selectedContractorRoles.add(role);
+                        } else {
+                          _selectedContractorRoles.remove(role);
+                        }
+                        _syncSpecialtyFromRoles();
+                      });
+                    },
+                  );
+                }).toList(),
+              ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _estimatedCostController,
@@ -456,9 +802,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               const SizedBox(height: 12),
               ElevatedButton.icon(
                 onPressed: _isUploading ? null : _pickImage,
-                icon: const Icon(Icons.photo_camera),
+                icon: const Icon(Icons.folder_open),
                 label: Text(
-                  _selectedImage == null ? 'Take Photo' : 'Change Photo',
+                  _selectedImage == null ? 'Choose Image File' : 'Change Image File',
                   style: const TextStyle(fontFamily: AppTheme.appFontFamily),
                 ),
               ),
@@ -479,7 +825,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                         ),
                       )
                     : const Text(
-                        'Submit Request',
+                        'Save Request',
                         style: TextStyle(
                           fontSize: 16,
                           fontFamily: AppTheme.appFontFamily,

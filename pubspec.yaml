@@ -43,6 +43,8 @@ dependencies:
   printing: ^5.13.4
   path_provider: ^2.1.5
   image_picker: ^1.1.2
+  flutter_contacts: ^1.1.9+2
+  permission_handler: ^11.4.0
 
 dev_dependencies:
   flutter_test:

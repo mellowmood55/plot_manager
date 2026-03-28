@@ -24,6 +24,7 @@ class PropertyDetailScreen extends StatefulWidget {
 
 class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
   bool _isLoading = true;
+  bool _isPreparingAddUnit = false;
   String? _error;
   List<_UnitTenantView> _units = [];
 
@@ -100,41 +101,69 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
     final rentAmountController = TextEditingController();
     String? selectedUnitType;
     double selectedRent = 0;
+    if (_isPreparingAddUnit) {
+      return;
+    }
 
-    final propertyType = widget.property.propertyType?.trim().toLowerCase();
-    if (propertyType != null && propertyType != 'residential') {
-      _showUnitSnackBar(
-        'Unit type and bedroom occupancy rules are enabled for residential plots only.',
-        isError: true,
+    setState(() {
+      _isPreparingAddUnit = true;
+    });
+
+    BuildContext? preparingDialogContext;
+
+    try {
+      showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) {
+          preparingDialogContext = dialogContext;
+          return const Center(child: CircularProgressIndicator());
+        },
       );
-      return;
-    }
 
-    final orgId = await SupabaseService.instance.getCurrentOrganizationId();
-    if (orgId == null) {
-      _showUnitSnackBar('Organization not found.', isError: true);
-      return;
-    }
+      final propertyType = widget.property.propertyType?.trim().toLowerCase();
+      if (propertyType != null && propertyType != 'residential') {
+        _showUnitSnackBar(
+          'Unit type and bedroom occupancy rules are enabled for residential plots only.',
+          isError: true,
+        );
+        return;
+      }
 
-    final configurations =
-        await SupabaseService.instance.fetchUnitConfigurationsByOrganization(orgId);
+      final orgId = await SupabaseService.instance
+          .getCurrentOrganizationId()
+          .timeout(const Duration(seconds: 10));
+      if (orgId == null) {
+        _showUnitSnackBar('Organization not found.', isError: true);
+        return;
+      }
 
-    if (configurations.isEmpty) {
-      _showUnitSnackBar(
-        'No unit types configured. Open Settings > General Settings > Edit Unit Types first.',
-        isError: true,
-      );
-      return;
-    }
+      final configurations = await SupabaseService.instance
+          .fetchUnitConfigurationsByOrganization(orgId)
+          .timeout(const Duration(seconds: 12));
 
-    if (!mounted) return;
+      if (configurations.isEmpty) {
+        _showUnitSnackBar(
+          'No unit types configured. Open Settings > General Settings > Edit Unit Types first.',
+          isError: true,
+        );
+        return;
+      }
 
-    await showDialog<void>(
-      context: context,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return AlertDialog(
+      if (preparingDialogContext != null &&
+          Navigator.of(preparingDialogContext!).canPop()) {
+        Navigator.of(preparingDialogContext!).pop();
+        preparingDialogContext = null;
+      }
+
+      if (!mounted) return;
+
+      await showDialog<void>(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) {
+              return AlertDialog(
               backgroundColor: AppTheme.surfaceColor,
               title: const Text(
                 'Add Unit',
@@ -154,9 +183,10 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       value: selectedUnitType,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Unit Type',
-                        hintText: 'Select or create a unit type',
+                        hintText: 'Select unit type',
                       ),
                       items: configurations
                           .map(
@@ -195,6 +225,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   ],
                 ),
               ),
+              actionsOverflowDirection: VerticalDirection.down,
+              actionsOverflowButtonSpacing: 8,
               actions: [
                 TextButton(
                   onPressed: () {
@@ -205,7 +237,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    final candidateUnitNumber = unitNumberController.text.trim().toUpperCase();
+                    final candidateUnitNumber =
+                        unitNumberController.text.trim().toUpperCase();
 
                     if (candidateUnitNumber.isEmpty) {
                       _showUnitSnackBar('Unit number is required.', isError: true);
@@ -221,8 +254,8 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                       return;
                     }
 
-                    final unitNumber =
-                        SupabaseService.instance.normalizeUnitNumber(candidateUnitNumber);
+                    final unitNumber = SupabaseService.instance
+                        .normalizeUnitNumber(candidateUnitNumber);
 
                     if (unitNumber != candidateUnitNumber) {
                       unitNumberController.text = unitNumber;
@@ -292,14 +325,29 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                   child: const Text('Save Unit'),
                 ),
               ],
-            );
-          },
-        );
-      },
-    );
-
-    unitNumberController.dispose();
-    rentAmountController.dispose();
+              );
+            },
+          );
+        },
+      );
+    } on TimeoutException {
+      _showUnitSnackBar('Preparing Add Unit timed out. Please try again.',
+          isError: true);
+    } catch (error) {
+      _showUnitSnackBar('Unable to open Add Unit: $error', isError: true);
+    } finally {
+      if (preparingDialogContext != null &&
+          Navigator.of(preparingDialogContext!).canPop()) {
+        Navigator.of(preparingDialogContext!).pop();
+      }
+      unitNumberController.dispose();
+      rentAmountController.dispose();
+      if (mounted) {
+        setState(() {
+          _isPreparingAddUnit = false;
+        });
+      }
+    }
   }
 
   UnitConfiguration _configurationForType(

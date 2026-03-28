@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/maintenance_request.dart';
+import '../../../models/contractor.dart';
+import 'add_maintenance_screen.dart';
 import '../../../services/maintenance_service.dart';
 
 class MaintenanceDetailScreen extends StatefulWidget {
@@ -22,7 +24,6 @@ class MaintenanceDetailScreen extends StatefulWidget {
 
 class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
   late Future<MaintenanceRequest> _requestFuture;
-  bool _isResolving = false;
 
   @override
   void initState() {
@@ -38,6 +39,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
     final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
+      if (!mounted) return;
       return;
     }
     if (!mounted) return;
@@ -53,202 +55,48 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
   }
 
   Future<void> _openResolveDialog(MaintenanceRequest request) async {
-    final actualCostController = TextEditingController();
-    File? afterPhoto;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.surfaceColor,
-              title: const Text(
-                'Mark as Resolved',
-                style: TextStyle(fontFamily: AppTheme.appFontFamily),
-              ),
-              content: SizedBox(
-                width: MediaQuery.of(context).size.width > 600 ? 420 : double.maxFinite,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextField(
-                        controller: actualCostController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                        decoration: const InputDecoration(
-                          labelText: 'Actual Cost',
-                          prefixText: '\$ ',
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      if (afterPhoto != null)
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.file(
-                            afterPhoto!,
-                            height: 180,
-                            fit: BoxFit.cover,
-                          ),
-                        )
-                      else
-                        Container(
-                          height: 120,
-                          decoration: BoxDecoration(
-                            color: Colors.black26,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'No After Photo Selected',
-                              style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      OutlinedButton.icon(
-                        onPressed: _isResolving
-                            ? null
-                            : () async {
-                                try {
-                                  final picked = await ImagePicker().pickImage(source: ImageSource.camera);
-                                  if (picked == null) return;
-                                  setDialogState(() {
-                                    afterPhoto = File(picked.path);
-                                  });
-                                } catch (e) {
-                                  if (!mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: Colors.red.shade700,
-                                      content: Text(
-                                        'Failed to pick after photo: $e',
-                                        style: const TextStyle(
-                                          fontFamily: AppTheme.appFontFamily,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                        icon: const Icon(Icons.photo_camera_outlined),
-                        label: const Text(
-                          'Capture After Photo',
-                          style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: _isResolving ? null : () => Navigator.of(dialogContext).pop(),
-                  child: const Text(
-                    'Cancel',
-                    style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: _isResolving
-                      ? null
-                      : () async {
-                          final actualCost = double.tryParse(actualCostController.text.trim());
-                          if (actualCost == null) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: Colors.redAccent,
-                                content: Text(
-                                  'Enter a valid actual cost before resolving.',
-                                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          setState(() {
-                            _isResolving = true;
-                          });
-
-                          try {
-                            String? afterImageUrl;
-                            if (afterPhoto != null) {
-                              final path = await MaintenanceService.instance.uploadAfterMaintenanceImage(
-                                afterPhoto!,
-                                request.unitId,
-                                request.id,
-                              );
-                              afterImageUrl = MaintenanceService.instance.getImageUrl(path);
-                            }
-
-                            await MaintenanceService.instance.resolveMaintenanceRequest(
-                              requestId: request.id,
-                              actualCost: actualCost,
-                              afterImageUrl: afterImageUrl,
-                            );
-
-                            if (!mounted) return;
-                            Navigator.of(dialogContext).pop();
-                            setState(_loadRequest);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: Color(0xFF0D9488),
-                                content: Text(
-                                  'Ticket marked as resolved.',
-                                  style: TextStyle(
-                                    fontFamily: AppTheme.appFontFamily,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            );
-                          } catch (e) {
-                            if (!mounted) return;
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: Colors.red.shade700,
-                                content: Text(
-                                  'Failed to resolve ticket: $e',
-                                  style: const TextStyle(
-                                    fontFamily: AppTheme.appFontFamily,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            );
-                          } finally {
-                            if (!mounted) return;
-                            setState(() {
-                              _isResolving = false;
-                            });
-                          }
-                        },
-                  child: _isResolving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Confirm Resolution',
-                          style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                        ),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    FocusManager.instance.primaryFocus?.unfocus();
+    final resolved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => _ResolveMaintenanceScreen(request: request),
+      ),
     );
 
-    actualCostController.dispose();
+    if (!mounted) return;
+    if (resolved == true) {
+      setState(() {
+        _loadRequest();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Color(0xFF0D9488),
+          content: Text(
+            'Ticket marked as resolved.',
+            style: TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _openEditScreen(MaintenanceRequest request) async {
+    final updated = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddMaintenanceScreen(
+          unitId: request.unitId,
+          initialRequest: request,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    if (updated == true) {
+      setState(_loadRequest);
+    }
   }
 
   Color _priorityColor(MaintenancePriority priority) {
@@ -262,6 +110,196 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
     }
   }
 
+  Color _priorityBackgroundColor(MaintenancePriority priority) {
+    switch (priority) {
+      case MaintenancePriority.high:
+        return Colors.red.withValues(alpha: 0.2);
+      case MaintenancePriority.medium:
+        return const Color(0xFFCC7A00);
+      case MaintenancePriority.low:
+        return Colors.teal.withValues(alpha: 0.2);
+    }
+  }
+
+  Color _priorityTextColor(MaintenancePriority priority) {
+    switch (priority) {
+      case MaintenancePriority.medium:
+        return Colors.white;
+      default:
+        return _priorityColor(priority);
+    }
+  }
+
+  Widget _buildContractorSection(MaintenanceRequest request) {
+    if (request.contractor != null) {
+      return _buildContractorRow(request.contractor!);
+    }
+
+    if (request.contractorId == null || request.contractorId!.isEmpty) {
+      return const Text(
+        'Assigned Contractor: Not Assigned',
+        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+      );
+    }
+
+    // Safety: if contractor_id exists but relation was not expanded, fetch it directly.
+    return FutureBuilder<Contractor?>(
+      future: MaintenanceService.instance.getContractorById(request.contractorId!),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: LinearProgressIndicator(),
+          );
+        }
+
+        final contractor = snapshot.data;
+        if (contractor == null) {
+          return const Text(
+            'Assigned Contractor: Not Assigned',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          );
+        }
+
+        return _buildContractorRow(contractor);
+      },
+    );
+  }
+
+  Widget _buildContractorRow(Contractor contractor) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: Text(
+            'Assigned Contractor: ${contractor.name} - ${contractor.specialty}',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton.icon(
+          onPressed: () => _callContractor(contractor.phone),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppTheme.primaryColor,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          icon: const Icon(Icons.call, size: 16),
+          label: const Text(
+            'Call Contractor',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openImagePreview({
+    required String title,
+    required String? storedPathOrUrl,
+    required String emptyMessage,
+  }) async {
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (storedPathOrUrl == null || storedPathOrUrl.trim().isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            emptyMessage,
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final resolvedUrl = await MaintenanceService.instance.getAccessibleImageUrl(storedPathOrUrl);
+    if (!mounted) return;
+
+    if (resolvedUrl.isEmpty) {
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            emptyMessage,
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return Dialog(
+          backgroundColor: AppTheme.surfaceColor,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: AppTheme.appFontFamily,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: 'Close',
+                      onPressed: () {
+                        if (Navigator.of(dialogContext).canPop()) {
+                          Navigator.of(dialogContext).pop();
+                        }
+                      },
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              Flexible(
+                child: InteractiveViewer(
+                  child: Image.network(
+                    resolvedUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) {
+                      return const SizedBox(
+                        height: 220,
+                        child: Center(
+                          child: Text(
+                            'No Image Available',
+                            style: TextStyle(
+                              fontFamily: AppTheme.appFontFamily,
+                              color: Colors.white70,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -270,6 +308,23 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
           'Maintenance Ticket',
           style: TextStyle(fontFamily: AppTheme.appFontFamily),
         ),
+        actions: [
+          FutureBuilder<MaintenanceRequest>(
+            future: _requestFuture,
+            builder: (context, snapshot) {
+              final req = snapshot.data;
+              if (req == null || req.status != MaintenanceStatus.open) {
+                return const SizedBox.shrink();
+              }
+
+              return IconButton(
+                tooltip: 'Edit Ticket',
+                onPressed: () => _openEditScreen(req),
+                icon: const Icon(Icons.edit),
+              );
+            },
+          ),
+        ],
       ),
       body: FutureBuilder<MaintenanceRequest>(
         future: _requestFuture,
@@ -295,8 +350,6 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
               ),
             );
           }
-
-          final contractor = request.contractor;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
@@ -324,14 +377,14 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: _priorityColor(request.priority).withValues(alpha: 0.2),
+                                color: _priorityBackgroundColor(request.priority),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 request.priority.displayName,
                                 style: TextStyle(
                                   fontFamily: AppTheme.appFontFamily,
-                                  color: _priorityColor(request.priority),
+                                  color: _priorityTextColor(request.priority),
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -361,6 +414,8 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                           'Status: ${request.status.displayName}',
                           style: const TextStyle(fontFamily: AppTheme.appFontFamily),
                         ),
+                        const SizedBox(height: 8),
+                        _buildContractorSection(request),
                         if (request.resolvedAt != null)
                           Text(
                             'Resolved At: ${request.resolvedAt!.toLocal()}',
@@ -370,66 +425,53 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                     ),
                   ),
                 ),
-                if (contractor != null) ...[
-                  const SizedBox(height: 12),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Assigned Contractor',
-                            style: TextStyle(
-                              fontFamily: AppTheme.appFontFamily,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            contractor.displayLabel,
-                            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                          ),
-                          Text(
-                            contractor.phone,
-                            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: () => _callContractor(contractor.phone),
-                            icon: const Icon(Icons.call),
-                            label: const Text(
-                              'Call Handyman',
-                              style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                            ),
-                          ),
-                        ],
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => _openImagePreview(
+                        title: 'Before Image',
+                        storedPathOrUrl: request.imageUrl,
+                        emptyMessage: 'No Before Image Available',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text(
+                        'View Before Image',
+                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
                       ),
                     ),
-                  ),
-                ],
-                if (request.imageUrl != null && request.imageUrl!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(request.imageUrl!, fit: BoxFit.cover),
-                  ),
-                ],
-                if (request.afterImageUrl != null && request.afterImageUrl!.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.network(request.afterImageUrl!, fit: BoxFit.cover),
-                  ),
-                ],
+                    ElevatedButton.icon(
+                      onPressed: () => _openImagePreview(
+                        title: 'After Image',
+                        storedPathOrUrl: request.afterImageUrl,
+                        emptyMessage: 'No After Image Available',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                      ),
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text(
+                        'View After Image',
+                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                      ),
+                    ),
+                  ],
+                ),
                 const SizedBox(height: 16),
                 if (request.status != MaintenanceStatus.completed &&
                     request.status != MaintenanceStatus.closed)
                   ElevatedButton.icon(
-                    onPressed: _isResolving ? null : () => _openResolveDialog(request),
+                    onPressed: () => _openResolveDialog(request),
                     icon: const Icon(Icons.check_circle_outline),
-                    label: Text(
-                      _isResolving ? 'Resolving...' : 'Mark as Resolved',
+                    label: const Text(
+                      'Mark as Resolved',
                       style: const TextStyle(fontFamily: AppTheme.appFontFamily),
                     ),
                   ),
@@ -437,6 +479,204 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _ResolveMaintenanceScreen extends StatefulWidget {
+  const _ResolveMaintenanceScreen({required this.request});
+
+  final MaintenanceRequest request;
+
+  @override
+  State<_ResolveMaintenanceScreen> createState() => _ResolveMaintenanceScreenState();
+}
+
+class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
+  final _actualCostController = TextEditingController();
+  File? _afterPhoto;
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    _actualCostController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAfterPhoto() async {
+    try {
+      final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+      if (!mounted) return;
+      if (picked == null) return;
+
+      setState(() {
+        _afterPhoto = File(picked.path);
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Failed to pick after photo: $error',
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _confirmResolution() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+
+    final actualCost = double.tryParse(_actualCostController.text.trim());
+    if (actualCost == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            'Enter a valid actual cost before resolving.',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      String? afterImageUrl;
+      if (_afterPhoto != null) {
+        final path = await MaintenanceService.instance.uploadAfterMaintenanceImage(
+          _afterPhoto!,
+          widget.request.unitId,
+          widget.request.id,
+        );
+        if (!mounted) return;
+        afterImageUrl = MaintenanceService.instance.getImageUrl(path);
+      }
+
+      await MaintenanceService.instance.resolveMaintenanceRequest(
+        requestId: widget.request.id,
+        actualCost: actualCost,
+        afterImageUrl: afterImageUrl,
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: Text(
+            'Failed to resolve ticket: $error',
+            style: const TextStyle(
+              fontFamily: AppTheme.appFontFamily,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Mark as Resolved',
+          style: TextStyle(fontFamily: AppTheme.appFontFamily),
+        ),
+        leading: IconButton(
+          onPressed: _isSubmitting
+              ? null
+              : () {
+                  FocusManager.instance.primaryFocus?.unfocus();
+                  Navigator.of(context).pop(false);
+                },
+          icon: const Icon(Icons.close),
+          tooltip: 'Cancel',
+        ),
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _actualCostController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+              decoration: const InputDecoration(
+                labelText: 'Actual Cost',
+                prefixText: '\$ ',
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_afterPhoto != null)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.file(
+                  _afterPhoto!,
+                  height: 180,
+                  fit: BoxFit.cover,
+                ),
+              )
+            else
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: Colors.black26,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Center(
+                  child: Text(
+                    'No After Photo Selected',
+                    style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isSubmitting ? null : _pickAfterPhoto,
+              icon: const Icon(Icons.folder_open),
+              label: const Text(
+                'Choose After Image File',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isSubmitting ? null : _confirmResolution,
+              icon: const Icon(Icons.check_circle_outline),
+              label: _isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text(
+                      'Confirm Resolution',
+                      style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
