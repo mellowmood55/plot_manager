@@ -1,22 +1,10 @@
 import '../core/supabase_config.dart';
 import 'supabase_service.dart';
 
-enum FinanceFilter {
+enum FinanceRange {
   thisMonth,
   lastMonth,
   thisYear,
-}
-
-class FinanceTrendPoint {
-  const FinanceTrendPoint({
-    required this.month,
-    required this.revenue,
-    required this.expenses,
-  });
-
-  final DateTime month;
-  final double revenue;
-  final double expenses;
 }
 
 class RentCollectionSnapshot {
@@ -29,138 +17,52 @@ class RentCollectionSnapshot {
   final double pending;
 }
 
+class MonthlyFinancePoint {
+  const MonthlyFinancePoint({
+    required this.month,
+    required this.revenue,
+    required this.expenses,
+  });
+
+  final DateTime month;
+  final double revenue;
+  final double expenses;
+}
+
+class _DateBounds {
+  const _DateBounds(this.startInclusive, this.endExclusive);
+
+  final DateTime startInclusive;
+  final DateTime endExclusive;
+}
+
 class FinanceService {
   FinanceService._();
 
   static final FinanceService instance = FinanceService._();
 
-  Future<String?> _getCurrentOrganizationId() {
-    return SupabaseService.instance.getCurrentOrganizationId();
-  }
-
-  Future<List<Map<String, dynamic>>> _fetchOrganizationUnits() async {
-    final orgId = await _getCurrentOrganizationId();
-    if (orgId == null || orgId.isEmpty) {
-      return [];
-    }
-
-    final client = SupabaseConfig.getClient();
-
-    final properties = await client
-        .from('properties')
-        .select('id')
-        .eq('organization_id', orgId);
-
-    if ((properties as List).isEmpty) {
-      return [];
-    }
-
-    final propertyIds = properties
-        .map<String>((row) => (row['id'] ?? '').toString())
-        .where((id) => id.isNotEmpty)
-        .toList();
-
-    if (propertyIds.isEmpty) {
-      return [];
-    }
-
-    final units = await client
-        .from('units')
-        .select('id, rent_amount, status, tenant_id')
-        .inFilter('property_id', propertyIds);
-
-    return (units as List)
-        .map<Map<String, dynamic>>((row) => Map<String, dynamic>.from(row))
-        .toList();
-  }
-
-  Future<List<String>> _fetchOrganizationUnitIds() async {
-    final units = await _fetchOrganizationUnits();
-
-    return units
-        .map((row) => (row['id'] ?? '').toString())
-        .where((id) => id.isNotEmpty)
-        .toList();
-  }
-
-  double _sumNumericField(List<dynamic> rows, String field) {
-    double total = 0;
-
-    for (final row in rows) {
-      final value = row[field];
-      if (value is num) {
-        total += value.toDouble();
-      } else if (value != null) {
-        total += double.tryParse(value.toString()) ?? 0;
-      }
-    }
-
-    return total;
-  }
-
-  DateTime _monthStart(DateTime month) {
-    return DateTime(month.year, month.month, 1);
-  }
-
-  DateTime _monthEndExclusive(DateTime month) {
-    return DateTime(month.year, month.month + 1, 1);
-  }
-
-  String _dateOnly(DateTime value) {
-    return value.toIso8601String().split('T').first;
-  }
-
   Future<double> getMonthlyRevenue(DateTime month) async {
-    final unitIds = await _fetchOrganizationUnitIds();
-    if (unitIds.isEmpty) {
-      return 0;
-    }
-
-    final client = SupabaseConfig.getClient();
-    final start = _monthStart(month);
-    final endExclusive = _monthEndExclusive(month);
-
-    final rows = await client
-        .from('payments')
-        .select('amount_paid')
-        .inFilter('unit_id', unitIds)
-        .gte('payment_date', _dateOnly(start))
-        .lt('payment_date', _dateOnly(endExclusive));
-
-    return _sumNumericField(rows as List, 'amount_paid');
+    final bounds = _monthBounds(month);
+    return _sumRevenueInRange(bounds.startInclusive, bounds.endExclusive);
   }
 
   Future<double> getMonthlyExpenses(DateTime month) async {
-    final unitIds = await _fetchOrganizationUnitIds();
-    if (unitIds.isEmpty) {
-      return 0;
-    }
-
-    final client = SupabaseConfig.getClient();
-    final start = _monthStart(month).toUtc().toIso8601String();
-    final endExclusive = _monthEndExclusive(month).toUtc().toIso8601String();
-
-    final rows = await client
-        .from('maintenance_requests')
-        .select('actual_cost')
-        .inFilter('unit_id', unitIds)
-        .gte('resolved_at', start)
-        .lt('resolved_at', endExclusive);
-
-    return _sumNumericField(rows as List, 'actual_cost');
+    final bounds = _monthBounds(month);
+    return _sumExpensesInRange(bounds.startInclusive, bounds.endExclusive);
   }
 
-  Future<List<FinanceTrendPoint>> getSixMonthTrend() async {
+  Future<List<MonthlyFinancePoint>> getSixMonthTrend() async {
     final now = DateTime.now();
-    final points = <FinanceTrendPoint>[];
+    final startMonth = DateTime(now.year, now.month - 5, 1);
+    final points = <MonthlyFinancePoint>[];
 
-    for (int i = 5; i >= 0; i--) {
-      final month = DateTime(now.year, now.month - i, 1);
+    for (int i = 0; i < 6; i++) {
+      final month = DateTime(startMonth.year, startMonth.month + i, 1);
       final revenue = await getMonthlyRevenue(month);
       final expenses = await getMonthlyExpenses(month);
 
       points.add(
-        FinanceTrendPoint(
+        MonthlyFinancePoint(
           month: month,
           revenue: revenue,
           expenses: expenses,
@@ -171,64 +73,171 @@ class FinanceService {
     return points;
   }
 
-  Future<double> _getRangeRevenue(FinanceFilter filter) async {
-    final now = DateTime.now();
-
-    switch (filter) {
-      case FinanceFilter.thisMonth:
-        return getMonthlyRevenue(now);
-      case FinanceFilter.lastMonth:
-        return getMonthlyRevenue(DateTime(now.year, now.month - 1, 1));
-      case FinanceFilter.thisYear:
-        double total = 0;
-        for (int month = 1; month <= now.month; month++) {
-          total += await getMonthlyRevenue(DateTime(now.year, month, 1));
-        }
-        return total;
-    }
+  Future<double> getRevenueForRange(FinanceRange range) async {
+    final bounds = _rangeBounds(range);
+    return _sumRevenueInRange(bounds.startInclusive, bounds.endExclusive);
   }
 
-  Future<double> _getExpectedRentForRange(FinanceFilter filter) async {
+  Future<double> getExpensesForRange(FinanceRange range) async {
+    final bounds = _rangeBounds(range);
+    return _sumExpensesInRange(bounds.startInclusive, bounds.endExclusive);
+  }
+
+  Future<RentCollectionSnapshot> getRentCollectionSnapshot(FinanceRange range) async {
+    final unitRows = await _fetchOrganizationUnits();
+    if (unitRows.isEmpty) {
+      return const RentCollectionSnapshot(collected: 0, pending: 0);
+    }
+
+    final occupiedUnits = unitRows.where((row) {
+      final status = (row['status'] ?? '').toString().toLowerCase();
+      final tenantId = row['tenant_id'];
+      return status == 'occupied' || tenantId != null;
+    }).toList();
+
+    final monthlyRent = _sumRows(occupiedUnits, 'rent_amount');
+    final bounds = _rangeBounds(range);
+    final collected = await _sumRevenueInRange(bounds.startInclusive, bounds.endExclusive);
+
+    int monthCount = 1;
+    if (range == FinanceRange.thisYear) {
+      monthCount = 12;
+    }
+
+    final expected = monthlyRent * monthCount;
+    final pending = (expected - collected).clamp(0, double.infinity).toDouble();
+
+    return RentCollectionSnapshot(collected: collected, pending: pending);
+  }
+
+  Future<List<String>> _fetchOrganizationUnitIds() async {
     final units = await _fetchOrganizationUnits();
-    if (units.isEmpty) {
+    return units
+        .map((row) => row['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<dynamic>> _fetchOrganizationUnits() async {
+    final orgId = await SupabaseService.instance.getCurrentOrganizationId();
+    if (orgId == null) {
+      return const [];
+    }
+
+    final client = SupabaseConfig.getClient();
+
+    final propertyRows = await client
+        .from('properties')
+        .select('id')
+        .eq('organization_id', orgId);
+
+    final propertyIds = propertyRows
+        .map((row) => row['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList();
+
+    if (propertyIds.isEmpty) {
+      return const [];
+    }
+
+    return client
+        .from('units')
+        .select('id, rent_amount, status, tenant_id')
+        .inFilter('property_id', propertyIds);
+  }
+
+  Future<double> _sumRevenueInRange(DateTime startInclusive, DateTime endExclusive) async {
+    final unitIds = await _fetchOrganizationUnitIds();
+    if (unitIds.isEmpty) {
       return 0;
     }
 
-    double monthlyRentDue = 0;
+    final client = SupabaseConfig.getClient();
+    final startDate = _dateOnly(startInclusive);
+    final endDate = _dateOnly(endExclusive.subtract(const Duration(days: 1)));
 
-    for (final unit in units) {
-      final status = (unit['status'] ?? '').toString().toLowerCase();
-      final tenantId = unit['tenant_id']?.toString();
-      final isOccupied = status == 'occupied' || (tenantId != null && tenantId.isNotEmpty);
+    final rows = await client
+        .from('payments')
+        .select('amount_paid')
+        .inFilter('unit_id', unitIds)
+        .gte('payment_date', startDate)
+        .lte('payment_date', endDate);
 
-      if (!isOccupied) {
+    return _sumRows(rows, 'amount_paid');
+  }
+
+  Future<double> _sumExpensesInRange(DateTime startInclusive, DateTime endExclusive) async {
+    final unitIds = await _fetchOrganizationUnitIds();
+    if (unitIds.isEmpty) {
+      return 0;
+    }
+
+    final client = SupabaseConfig.getClient();
+
+    final rows = await client
+        .from('maintenance_requests')
+        .select('actual_cost, resolved_at, created_at')
+        .inFilter('unit_id', unitIds)
+        .not('actual_cost', 'is', null);
+
+    double total = 0;
+    for (final row in rows) {
+      final rawTimestamp = row['resolved_at'] ?? row['created_at'];
+      if (rawTimestamp == null) {
         continue;
       }
 
-      final rentValue = unit['rent_amount'];
-      if (rentValue is num) {
-        monthlyRentDue += rentValue.toDouble();
-      } else if (rentValue != null) {
-        monthlyRentDue += double.tryParse(rentValue.toString()) ?? 0;
+      final timestamp = DateTime.tryParse(rawTimestamp.toString());
+      if (timestamp == null) {
+        continue;
       }
+
+      final inRange = !timestamp.isBefore(startInclusive) && timestamp.isBefore(endExclusive);
+      if (!inRange) {
+        continue;
+      }
+
+      final rawCost = row['actual_cost'];
+      total += rawCost is num ? rawCost.toDouble() : double.tryParse(rawCost.toString()) ?? 0;
     }
 
-    if (filter == FinanceFilter.thisYear) {
-      final monthsElapsed = DateTime.now().month;
-      return monthlyRentDue * monthsElapsed;
-    }
-
-    return monthlyRentDue;
+    return total;
   }
 
-  Future<RentCollectionSnapshot> getRentCollectionSnapshot(FinanceFilter filter) async {
-    final collected = await _getRangeRevenue(filter);
-    final expected = await _getExpectedRentForRange(filter);
-    final pending = ((expected - collected) < 0 ? 0.0 : (expected - collected)).toDouble();
+  _DateBounds _monthBounds(DateTime month) {
+    final start = DateTime(month.year, month.month, 1);
+    final end = DateTime(month.year, month.month + 1, 1);
+    return _DateBounds(start, end);
+  }
 
-    return RentCollectionSnapshot(
-      collected: collected,
-      pending: pending,
-    );
+  _DateBounds _rangeBounds(FinanceRange range) {
+    final now = DateTime.now();
+
+    switch (range) {
+      case FinanceRange.thisMonth:
+        return _DateBounds(DateTime(now.year, now.month, 1), DateTime(now.year, now.month + 1, 1));
+      case FinanceRange.lastMonth:
+        return _DateBounds(DateTime(now.year, now.month - 1, 1), DateTime(now.year, now.month, 1));
+      case FinanceRange.thisYear:
+        return _DateBounds(DateTime(now.year, 1, 1), DateTime(now.year + 1, 1, 1));
+    }
+  }
+
+  String _dateOnly(DateTime value) {
+    final year = value.year.toString().padLeft(4, '0');
+    final month = value.month.toString().padLeft(2, '0');
+    final day = value.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
+
+  double _sumRows(List<dynamic> rows, String key) {
+    double total = 0;
+    for (final row in rows) {
+      final value = row[key];
+      total += value is num ? value.toDouble() : double.tryParse(value.toString()) ?? 0;
+    }
+    return total;
   }
 }

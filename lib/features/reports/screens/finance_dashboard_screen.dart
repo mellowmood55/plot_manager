@@ -13,26 +13,32 @@ class FinanceDashboardScreen extends StatefulWidget {
 }
 
 class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
-  final _currency = NumberFormat.currency(symbol: r'$ ', decimalDigits: 0);
+  static const String _fontFamily = 'Comic Sans MS';
+
+  final FinanceService _financeService = FinanceService.instance;
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+
+  FinanceRange _selectedRange = FinanceRange.thisMonth;
 
   bool _isLoading = true;
   String? _error;
-  FinanceFilter _selectedFilter = FinanceFilter.thisMonth;
 
-  double _currentMonthProfit = 0;
-  RentCollectionSnapshot _rentSnapshot = const RentCollectionSnapshot(
-    collected: 0,
-    pending: 0,
-  );
-  List<FinanceTrendPoint> _trend = [];
+  double _revenue = 0;
+  double _expenses = 0;
+  double _netProfit = 0;
+
+  double _rentCollected = 0;
+  double _pendingRent = 0;
+
+  List<MonthlyFinancePoint> _trend = const [];
 
   @override
   void initState() {
     super.initState();
-    _loadDashboard();
+    _loadFinanceData();
   }
 
-  Future<void> _loadDashboard() async {
+  Future<void> _loadFinanceData() async {
     if (!mounted) return;
 
     setState(() {
@@ -41,21 +47,19 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     });
 
     try {
-      final now = DateTime.now();
-
-      final currentMonthRevenue =
-          await FinanceService.instance.getMonthlyRevenue(now);
-      final currentMonthExpenses =
-          await FinanceService.instance.getMonthlyExpenses(now);
-      final rentSnapshot =
-          await FinanceService.instance.getRentCollectionSnapshot(_selectedFilter);
-      final trend = await FinanceService.instance.getSixMonthTrend();
+      final revenue = await _financeService.getRevenueForRange(_selectedRange);
+      final expenses = await _financeService.getExpensesForRange(_selectedRange);
+      final snapshot = await _financeService.getRentCollectionSnapshot(_selectedRange);
+      final trend = await _financeService.getSixMonthTrend();
 
       if (!mounted) return;
 
       setState(() {
-        _currentMonthProfit = currentMonthRevenue - currentMonthExpenses;
-        _rentSnapshot = rentSnapshot;
+        _revenue = revenue;
+        _expenses = expenses;
+        _netProfit = revenue - expenses;
+        _rentCollected = snapshot.collected;
+        _pendingRent = snapshot.pending;
         _trend = trend;
         _isLoading = false;
       });
@@ -69,61 +73,45 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     }
   }
 
-  Future<void> _onFilterChanged(FinanceFilter? filter) async {
-    if (filter == null || filter == _selectedFilter) {
+  Future<void> _onRangeChanged(FinanceRange? value) async {
+    if (value == null) {
       return;
     }
 
     if (!mounted) return;
 
     setState(() {
-      _selectedFilter = filter;
-      _isLoading = true;
+      _selectedRange = value;
     });
 
-    try {
-      final rentSnapshot =
-          await FinanceService.instance.getRentCollectionSnapshot(filter);
-
-      if (!mounted) return;
-
-      setState(() {
-        _rentSnapshot = rentSnapshot;
-        _isLoading = false;
-      });
-    } catch (error) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-        _error = 'Failed to refresh filter: $error';
-      });
-    }
+    await _loadFinanceData();
   }
 
-  String _labelForFilter(FinanceFilter filter) {
-    switch (filter) {
-      case FinanceFilter.thisMonth:
+  String _rangeLabel(FinanceRange range) {
+    switch (range) {
+      case FinanceRange.thisMonth:
         return 'This Month';
-      case FinanceFilter.lastMonth:
+      case FinanceRange.lastMonth:
         return 'Last Month';
-      case FinanceFilter.thisYear:
+      case FinanceRange.thisYear:
         return 'This Year';
     }
   }
 
-  Widget _buildProfitCard() {
-    final isPositive = _currentMonthProfit >= 0;
+  Widget _buildNetProfitCard() {
+    final bool isPositive = _netProfit >= 0;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isPositive ? AppTheme.primaryColor : Colors.orange,
-          width: 1.4,
+        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          colors: isPositive
+              ? const [Color(0xFF0F766E), Color(0xFF134E4A)]
+              : const [Color(0xFF9A3412), Color(0xFF7C2D12)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Column(
@@ -132,138 +120,45 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
           const Text(
             'Net Profit',
             style: TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _currency.format(_currentMonthProfit),
-            style: TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              fontSize: 34,
-              fontWeight: FontWeight.w800,
-              color: isPositive ? AppTheme.primaryColor : Colors.orange,
+              fontFamily: _fontFamily,
+              fontSize: 26,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 8),
-          const Text(
-            'Current month balance',
-            style: TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              color: Color(0xFFCBD5E1),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilterDropdown() {
-    return DropdownButtonFormField<FinanceFilter>(
-      initialValue: _selectedFilter,
-      decoration: const InputDecoration(
-        labelText: 'Period',
-      ),
-      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-      items: FinanceFilter.values
-          .map(
-            (item) => DropdownMenuItem<FinanceFilter>(
-              value: item,
-              child: Text(
-                _labelForFilter(item),
-                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-              ),
-            ),
-          )
-          .toList(),
-      onChanged: _onFilterChanged,
-    );
-  }
-
-  Widget _buildRentPieChart(BoxConstraints constraints) {
-    final total = _rentSnapshot.collected + _rentSnapshot.pending;
-    final isEmpty = total <= 0;
-    final chartSize = constraints.maxWidth < 360 ? 180.0 : 230.0;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
           Text(
-            'Rent Status (${_labelForFilter(_selectedFilter)})',
+            _currencyFormat.format(_netProfit),
             style: const TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
+              fontFamily: _fontFamily,
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              color: Colors.white,
             ),
           ),
-          const SizedBox(height: 16),
-          if (isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: Text(
-                  'No rent activity available',
-                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: chartSize,
-              child: PieChart(
-                PieChartData(
-                  centerSpaceRadius: chartSize * 0.2,
-                  sectionsSpace: 2,
-                  sections: [
-                    PieChartSectionData(
-                      value: _rentSnapshot.collected,
-                      color: AppTheme.primaryColor,
-                      title:
-                          '${((_rentSnapshot.collected / total) * 100).toStringAsFixed(0)}%',
-                      radius: chartSize * 0.32,
-                      titleStyle: const TextStyle(
-                        fontFamily: AppTheme.appFontFamily,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    PieChartSectionData(
-                      value: _rentSnapshot.pending,
-                      color: Colors.orange,
-                      title:
-                          '${((_rentSnapshot.pending / total) * 100).toStringAsFixed(0)}%',
-                      radius: chartSize * 0.32,
-                      titleStyle: const TextStyle(
-                        fontFamily: AppTheme.appFontFamily,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+          const SizedBox(height: 6),
+          Text(
+            _rangeLabel(_selectedRange),
+            style: const TextStyle(
+              fontFamily: _fontFamily,
+              fontSize: 14,
+              color: Color(0xFFE2E8F0),
             ),
-          const SizedBox(height: 16),
+          ),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 12,
-            runSpacing: 8,
+            runSpacing: 10,
             children: [
-              _legendItem(
-                color: AppTheme.primaryColor,
-                label: 'Rent Collected: ${_currency.format(_rentSnapshot.collected)}',
+              _miniMetricPill(
+                label: 'Revenue',
+                value: _currencyFormat.format(_revenue),
+                color: const Color(0xFF14B8A6),
               ),
-              _legendItem(
-                color: Colors.orange,
-                label: 'Pending Rent: ${_currency.format(_rentSnapshot.pending)}',
+              _miniMetricPill(
+                label: 'Expenses',
+                value: _currencyFormat.format(_expenses),
+                color: const Color(0xFFFB923C),
               ),
             ],
           ),
@@ -272,182 +167,330 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     );
   }
 
-  Widget _legendItem({
+  Widget _miniMetricPill({
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.8)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '$label: $value',
+            style: const TextStyle(
+              fontFamily: _fontFamily,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieChartCard() {
+    final total = _rentCollected + _pendingRent;
+
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Rent Overview',
+              style: TextStyle(
+                fontFamily: _fontFamily,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chartSize = constraints.maxWidth < 360 ? 170.0 : 220.0;
+
+                return Wrap(
+                  spacing: 16,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: chartSize,
+                      height: chartSize,
+                      child: PieChart(
+                        PieChartData(
+                          centerSpaceRadius: chartSize * 0.25,
+                          sectionsSpace: 3,
+                          sections: [
+                            PieChartSectionData(
+                              color: const Color(0xFF0D9488),
+                              value: _rentCollected,
+                              title: total <= 0
+                                  ? '0%'
+                                  : '${((_rentCollected / total) * 100).toStringAsFixed(1)}%',
+                              titleStyle: const TextStyle(
+                                fontFamily: _fontFamily,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                            PieChartSectionData(
+                              color: const Color(0xFFF97316),
+                              value: _pendingRent,
+                              title: total <= 0
+                                  ? '0%'
+                                  : '${((_pendingRent / total) * 100).toStringAsFixed(1)}%',
+                              titleStyle: const TextStyle(
+                                fontFamily: _fontFamily,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 210, maxWidth: 280),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildLegendLine(
+                            color: const Color(0xFF0D9488),
+                            label: 'Rent Collected',
+                            value: _currencyFormat.format(_rentCollected),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildLegendLine(
+                            color: const Color(0xFFF97316),
+                            label: 'Pending Rent',
+                            value: _currencyFormat.format(_pendingRent),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendLine({
     required Color color,
     required String label,
+    required String value,
   }) {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 14,
+          height: 14,
           decoration: BoxDecoration(
             color: color,
-            shape: BoxShape.circle,
+            borderRadius: BorderRadius.circular(4),
           ),
         ),
         const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: _fontFamily,
+              fontSize: 14,
+            ),
+          ),
+        ),
         Text(
-          label,
-          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          value,
+          style: const TextStyle(
+            fontFamily: _fontFamily,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildTrendBarChart(BoxConstraints constraints) {
-    final chartHeight = constraints.maxWidth < 380 ? 250.0 : 300.0;
+  Widget _buildBarChartCard() {
+    final maxY = _resolveBarMaxY();
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceColor,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Revenue vs Expenses (6 Months)',
-            style: TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (_trend.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(
-                child: Text(
-                  'No trend data available',
-                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: chartHeight,
-              child: BarChart(
-                BarChartData(
-                  alignment: BarChartAlignment.spaceAround,
-                  maxY: _maxTrendValue() * 1.2,
-                  gridData: FlGridData(
-                    show: true,
-                    drawVerticalLine: false,
-                    horizontalInterval: _gridInterval(_maxTrendValue()),
-                  ),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 48,
-                        interval: _gridInterval(_maxTrendValue()),
-                        getTitlesWidget: (value, meta) {
-                          return Text(
-                            NumberFormat.compact().format(value),
-                            style: const TextStyle(
-                              fontFamily: AppTheme.appFontFamily,
-                              fontSize: 10,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          if (index < 0 || index >= _trend.length) {
-                            return const SizedBox.shrink();
-                          }
-
-                          final monthLabel = DateFormat('MMM').format(_trend[index].month);
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              monthLabel,
-                              style: const TextStyle(
-                                fontFamily: AppTheme.appFontFamily,
-                                fontSize: 10,
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  borderData: FlBorderData(show: false),
-                  barGroups: List.generate(
-                    _trend.length,
-                    (index) {
-                      final item = _trend[index];
-                      return BarChartGroupData(
-                        x: index,
-                        barsSpace: 4,
-                        barRods: [
-                          BarChartRodData(
-                            toY: item.revenue,
-                            color: AppTheme.primaryColor,
-                            width: constraints.maxWidth < 380 ? 10 : 12,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                          BarChartRodData(
-                            toY: item.expenses,
-                            color: Colors.orange,
-                            width: constraints.maxWidth < 380 ? 10 : 12,
-                            borderRadius: BorderRadius.circular(3),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '6-Month Revenue vs Expenses',
+              style: TextStyle(
+                fontFamily: _fontFamily,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              _legendItem(color: AppTheme.primaryColor, label: 'Revenue'),
-              _legendItem(color: Colors.orange, label: 'Expenses'),
-            ],
-          ),
-        ],
+            const SizedBox(height: 16),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final chartWidth = constraints.maxWidth < 520 ? 520.0 : constraints.maxWidth;
+
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: chartWidth,
+                    height: 260,
+                    child: BarChart(
+                      BarChartData(
+                        maxY: maxY,
+                        barGroups: _buildBarGroups(),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: maxY / 4,
+                          getDrawingHorizontalLine: (_) => FlLine(
+                            color: const Color(0xFF334155),
+                            strokeWidth: 1,
+                          ),
+                        ),
+                        borderData: FlBorderData(show: false),
+                        titlesData: FlTitlesData(
+                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              interval: maxY / 4,
+                              reservedSize: 64,
+                              getTitlesWidget: (value, meta) {
+                                return Text(
+                                  _currencyFormat.format(value),
+                                  style: const TextStyle(
+                                    fontFamily: _fontFamily,
+                                    fontSize: 10,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              getTitlesWidget: (value, meta) {
+                                final index = value.toInt();
+                                if (index < 0 || index >= _trend.length) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Text(
+                                    DateFormat('MMM').format(_trend[index].month),
+                                    style: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        barTouchData: BarTouchData(enabled: true),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 16,
+              runSpacing: 10,
+              children: const [
+                _ChartLegend(label: 'Revenue', color: Color(0xFF0D9488)),
+                _ChartLegend(label: 'Expenses', color: Color(0xFFF97316)),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  double _maxTrendValue() {
+  List<BarChartGroupData> _buildBarGroups() {
+    final groups = <BarChartGroupData>[];
+
+    for (int i = 0; i < _trend.length; i++) {
+      final data = _trend[i];
+      groups.add(
+        BarChartGroupData(
+          x: i,
+          barsSpace: 6,
+          barRods: [
+            BarChartRodData(
+              toY: data.revenue,
+              width: 11,
+              borderRadius: BorderRadius.circular(3),
+              color: const Color(0xFF0D9488),
+            ),
+            BarChartRodData(
+              toY: data.expenses,
+              width: 11,
+              borderRadius: BorderRadius.circular(3),
+              color: const Color(0xFFF97316),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return groups;
+  }
+
+  double _resolveBarMaxY() {
     double maxValue = 0;
-    for (final item in _trend) {
-      if (item.revenue > maxValue) {
-        maxValue = item.revenue;
+
+    for (final point in _trend) {
+      if (point.revenue > maxValue) {
+        maxValue = point.revenue;
       }
-      if (item.expenses > maxValue) {
-        maxValue = item.expenses;
+      if (point.expenses > maxValue) {
+        maxValue = point.expenses;
       }
     }
 
-    return maxValue <= 0 ? 100 : maxValue;
-  }
+    if (maxValue <= 0) {
+      return 100;
+    }
 
-  double _gridInterval(double maxValue) {
-    if (maxValue <= 1000) return 250;
-    if (maxValue <= 5000) return 1000;
-    if (maxValue <= 20000) return 5000;
-    return 10000;
+    return maxValue * 1.2;
   }
 
   @override
@@ -456,7 +499,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
       appBar: AppBar(
         title: const Text(
           'Profit & Loss Dashboard',
-          style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          style: TextStyle(fontFamily: _fontFamily),
         ),
       ),
       body: _isLoading
@@ -468,38 +511,106 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                     child: Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                      style: const TextStyle(
+                        fontFamily: _fontFamily,
+                        fontSize: 16,
+                      ),
                     ),
                   ),
                 )
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    return RefreshIndicator(
-                      onRefresh: _loadDashboard,
-                      child: SingleChildScrollView(
-                        physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.all(16),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            minHeight: constraints.maxHeight - 32,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildProfitCard(),
-                              const SizedBox(height: 16),
-                              _buildFilterDropdown(),
-                              const SizedBox(height: 16),
-                              _buildRentPieChart(constraints),
-                              const SizedBox(height: 16),
-                              _buildTrendBarChart(constraints),
-                            ],
-                          ),
+              : SafeArea(
+                  child: RefreshIndicator(
+                    onRefresh: _loadFinanceData,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Filter',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontFamily: _fontFamily,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: 170,
+                              child: DropdownButtonFormField<FinanceRange>(
+                                value: _selectedRange,
+                                decoration: const InputDecoration(
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                style: const TextStyle(
+                                  fontFamily: _fontFamily,
+                                  color: Colors.white,
+                                ),
+                                dropdownColor: AppTheme.surfaceColor,
+                                items: FinanceRange.values
+                                    .map(
+                                      (range) => DropdownMenuItem<FinanceRange>(
+                                        value: range,
+                                        child: Text(
+                                          _rangeLabel(range),
+                                          style: const TextStyle(fontFamily: _fontFamily),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                                onChanged: (value) {
+                                  _onRangeChanged(value);
+                                },
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    );
-                  },
+                        const SizedBox(height: 14),
+                        _buildNetProfitCard(),
+                        const SizedBox(height: 16),
+                        _buildPieChartCard(),
+                        const SizedBox(height: 16),
+                        _buildBarChartCard(),
+                      ],
+                    ),
+                  ),
                 ),
+    );
+  }
+}
+
+class _ChartLegend extends StatelessWidget {
+  const _ChartLegend({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 14,
+          height: 14,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(4),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: _FinanceDashboardScreenState._fontFamily,
+            fontSize: 14,
+          ),
+        ),
+      ],
     );
   }
 }

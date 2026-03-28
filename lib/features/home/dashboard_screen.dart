@@ -4,10 +4,10 @@ import '../../core/theme.dart';
 import '../../core/supabase_config.dart';
 import '../../models/property.dart';
 import '../../services/supabase_service.dart';
+import '../reports/screens/finance_dashboard_screen.dart';
 import '../maintenance/screens/maintenance_list_screen.dart';
 import '../property/screens/add_property_screen.dart';
 import '../property/screens/property_detail_screen.dart';
-import '../reports/screens/finance_dashboard_screen.dart';
 import '../org/create_org_screen.dart';
 import '../settings/settings_screen.dart';
 
@@ -89,6 +89,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Plot Manager'),
         actions: [
+          IconButton(
+            tooltip: 'Finance',
+            icon: const Icon(LucideIcons.barChart3),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const FinanceDashboardScreen(),
+                ),
+              );
+            },
+          ),
           IconButton(
             tooltip: 'Maintenance',
             icon: const Icon(LucideIcons.wrench),
@@ -206,27 +217,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                                   fontFamily: AppTheme.appFontFamily,
                                 ),
-                          ),
-                          const SizedBox(height: 16),
-                          Wrap(
-                            spacing: 12,
-                            runSpacing: 12,
-                            children: [
-                              OutlinedButton.icon(
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (_) => const FinanceDashboardScreen(),
-                                    ),
-                                  );
-                                },
-                                icon: const Icon(LucideIcons.barChart3),
-                                label: const Text(
-                                  'Finance',
-                                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
