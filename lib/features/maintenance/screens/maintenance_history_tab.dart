@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
 import 'add_maintenance_screen.dart';
+import 'maintenance_detail_screen.dart';
 
 class MaintenanceHistoryTab extends StatefulWidget {
   final String unitId;
@@ -112,10 +113,21 @@ class _MaintenanceHistoryTabState extends State<MaintenanceHistoryTab> {
                     itemCount: requests.length,
                     itemBuilder: (context, index) {
                       final request = requests[index];
-                      return _MaintenanceCard(
-                        request: request,
-                        priorityColor: _getPriorityColor(request.priority),
-                        statusColor: _getStatusColor(request.status),
+                      return GestureDetector(
+                        onTap: () async {
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => MaintenanceDetailScreen(requestId: request.id),
+                            ),
+                          );
+                          if (!mounted) return;
+                          setState(_loadHistory);
+                        },
+                        child: _MaintenanceCard(
+                          request: request,
+                          priorityColor: _getPriorityColor(request.priority),
+                          statusColor: _getStatusColor(request.status),
+                        ),
                       );
                     },
                   ),

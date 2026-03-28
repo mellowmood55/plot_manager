@@ -3,6 +3,7 @@ import '../../../core/theme.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
 import 'add_maintenance_screen.dart';
+import 'maintenance_detail_screen.dart';
 
 class MaintenanceListScreen extends StatefulWidget {
   const MaintenanceListScreen({Key? key}) : super(key: key);
@@ -78,7 +79,6 @@ class _MaintenanceListScreenState extends State<MaintenanceListScreen> {
               return _MaintenanceRequestCard(
                 request: request,
                 priorityColor: _getPriorityColor(request.priority),
-                onRefresh: _loadRequests,
               );
             },
           );
@@ -107,12 +107,10 @@ class _MaintenanceListScreenState extends State<MaintenanceListScreen> {
 class _MaintenanceRequestCard extends StatelessWidget {
   final MaintenanceRequest request;
   final Color priorityColor;
-  final VoidCallback onRefresh;
 
   const _MaintenanceRequestCard({
     required this.request,
     required this.priorityColor,
-    required this.onRefresh,
   });
 
   @override
@@ -124,6 +122,23 @@ class _MaintenanceRequestCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () {
+                  Navigator.of(context)
+                      .push(
+                        MaterialPageRoute(
+                          builder: (_) => MaintenanceDetailScreen(requestId: request.id),
+                        ),
+                      );
+                },
+                child: const Text(
+                  'Open Ticket',
+                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                ),
+              ),
+            ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [

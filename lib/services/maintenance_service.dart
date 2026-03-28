@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/contractor.dart';
 import '../models/maintenance_request.dart';
 
 class MaintenanceService {
@@ -15,7 +16,7 @@ class MaintenanceService {
     try {
       final response = await _supabase
         .from('maintenance_requests')
-        .select()
+        .select('*, contractors(id, name, phone, specialty)')
         .inFilter('status', ['open', 'in_progress'])
         .order('created_at', ascending: false);
 
@@ -32,7 +33,7 @@ class MaintenanceService {
     try {
       final response = await _supabase
         .from('maintenance_requests')
-        .select()
+        .select('*, contractors(id, name, phone, specialty)')
         .eq('unit_id', unitId)
         .order('created_at', ascending: false);
 
@@ -49,9 +50,11 @@ class MaintenanceService {
     required String unitId,
     required String title,
     required String description,
+    required String category,
     required MaintenancePriority priority,
     double? estimatedCost,
     String? imageUrl,
+    String? contractorId,
   }) async {
     try {
       final response = await _supabase
@@ -60,17 +63,68 @@ class MaintenanceService {
           'unit_id': unitId,
           'title': title,
           'description': description,
+          'category': category,
           'priority': priority.value,
           'status': 'open',
           'estimated_cost': estimatedCost,
           'image_url': imageUrl,
+          'contractor_id': contractorId,
         })
-        .select()
+        .select('*, contractors(id, name, phone, specialty)')
         .single();
 
       return MaintenanceRequest.fromMap(response);
     } catch (e) {
       throw Exception('Failed to create maintenance request: $e');
+    }
+  }
+
+  Future<List<Contractor>> getContractors() async {
+    try {
+      final response = await _supabase
+        .from('contractors')
+        .select()
+        .order('name', ascending: true);
+
+      return (response as List)
+          .map((item) => Contractor.fromMap(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch contractors: $e');
+    }
+  }
+
+  Future<MaintenanceRequest> getMaintenanceRequestById(String requestId) async {
+    try {
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('*, contractors(id, name, phone, specialty)')
+          .eq('id', requestId)
+          .single();
+
+      return MaintenanceRequest.fromMap(response);
+    } catch (e) {
+      throw Exception('Failed to fetch maintenance request: $e');
+    }
+  }
+
+  Future<void> resolveMaintenanceRequest({
+    required String requestId,
+    required double actualCost,
+    String? afterImageUrl,
+  }) async {
+    try {
+      await _supabase
+        .from('maintenance_requests')
+        .update({
+          'status': MaintenanceStatus.completed.value,
+          'actual_cost': actualCost,
+          'resolved_at': DateTime.now().toUtc().toIso8601String(),
+          if (afterImageUrl != null) 'after_image_url': afterImageUrl,
+        })
+        .eq('id', requestId);
+    } catch (e) {
+      throw Exception('Failed to resolve maintenance request: $e');
     }
   }
 
@@ -111,9 +165,37 @@ class MaintenanceService {
         throw Exception('Upload returned empty path');
       }
 
+      final fullUrl = getImageUrl(fileName);
+      print('Maintenance upload URL: $fullUrl');
+
       return fileName;
     } catch (e) {
       throw Exception('Failed to upload maintenance image: $e');
+    }
+  }
+
+  Future<String> uploadAfterMaintenanceImage(
+    File imageFile,
+    String unitId,
+    String requestId,
+  ) async {
+    try {
+      final fileName = 'maintenance/$unitId/$requestId/after_${DateTime.now().millisecondsSinceEpoch}.jpg';
+
+      final response = await _supabase.storage
+          .from(_bucketName)
+          .upload(fileName, imageFile);
+
+      if (response.isEmpty) {
+        throw Exception('Upload returned empty path');
+      }
+
+      final fullUrl = getImageUrl(fileName);
+      print('Maintenance after-image URL: $fullUrl');
+
+      return fileName;
+    } catch (e) {
+      throw Exception('Failed to upload after image: $e');
     }
   }
 
@@ -141,8 +223,8 @@ class MaintenanceService {
             .from(_bucketName)
             .remove([imageUrl]);
         } catch (e) {
-          // Log but don't fail deletion if image cleanup fails
-          print('Warning: Failed to delete image from storage: $e');
+          // Keep deletion resilient even when storage cleanup fails.
+          print('Maintenance cleanup warning: failed to delete image from storage: $e');
         }
       }
 
