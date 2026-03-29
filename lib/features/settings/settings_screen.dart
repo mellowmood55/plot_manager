@@ -319,13 +319,19 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
       return;
     }
 
-    if (saved == -1) {
-      await UtilityRateService.instance.removeRateForUnitType(config.unitTypeName);
-    } else {
-      await UtilityRateService.instance.setRateForUnitType(config.unitTypeName, saved);
-    }
+    // Use post-frame callback to safely update state after dialog dismissal
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
 
-    await _load();
+      if (saved == -1) {
+        await UtilityRateService.instance.removeRateForUnitType(config.unitTypeName);
+      } else {
+        await UtilityRateService.instance.setRateForUnitType(config.unitTypeName, saved);
+      }
+
+      if (!mounted) return;
+      await _load();
+    });
   }
 
   @override
