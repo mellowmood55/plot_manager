@@ -356,7 +356,15 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
     }
 
     if (!mounted) return;
-    await _load();
+
+    final normalizedKey = config.unitTypeName.trim().toLowerCase();
+    setState(() {
+      if (saved.isNaN) {
+        _rateMap.remove(normalizedKey);
+      } else {
+        _rateMap[normalizedKey] = saved;
+      }
+    });
   }
 
   @override
