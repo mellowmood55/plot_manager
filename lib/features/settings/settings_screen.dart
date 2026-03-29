@@ -262,53 +262,80 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
     final saved = await showDialog<double?>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
-          title: Text(
-            'Rate: ${config.unitTypeName}',
-            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-          ),
-          content: TextField(
-            controller: controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Rate per unit',
-              prefixText: r'$ ',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(-1);
-              },
-              child: const Text('Clear'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final value = double.tryParse(controller.text.trim());
-                if (value == null || value < 0) {
-                  ScaffoldMessenger.of(dialogContext).showSnackBar(
-                    SnackBar(
-                      backgroundColor: Colors.red.shade700,
-                      content: const Text(
-                        'Enter a valid non-negative rate.',
-                        style: TextStyle(fontFamily: AppTheme.appFontFamily),
+        String? validationError;
+
+        return StatefulBuilder(
+          builder: (dialogContext, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.surfaceColor,
+              title: Text(
+                'Rate: ${config.unitTypeName}',
+                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: controller,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Rate per unit',
+                      prefixText: r'$ ',
+                    ),
+                  ),
+                  if (validationError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      validationError!,
+                      style: TextStyle(
+                        color: Colors.red.shade700,
+                        fontSize: 12,
+                        fontFamily: AppTheme.appFontFamily,
                       ),
                     ),
-                  );
-                  return;
-                }
-                Navigator.of(dialogContext).pop(value);
-              },
-              child: const Text('Save'),
-            ),
-          ],
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    controller.clear();
+                    setDialogState(() {
+                      validationError = null;
+                    });
+                  },
+                  child: const Text('Clear'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(double.nan);
+                  },
+                  child: const Text('Use Default'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final raw = controller.text.trim();
+                    final value = double.tryParse(raw);
+                    if (value == null || value < 0) {
+                      setDialogState(() {
+                        validationError = 'Enter a valid non-negative rate.';
+                      });
+                      return;
+                    }
+
+                    Navigator.of(dialogContext).pop(value);
+                  },
+                  child: const Text('Save'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -319,18 +346,28 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
       return;
     }
 
-    // Use post-frame callback to safely update state after dialog dismissal
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+    if (saved.isNaN) {
+      await UtilityRateService.instance.removeRateForUnitType(config.unitTypeName);
+    } else {
+      await UtilityRateService.instance.setRateForUnitType(config.unitTypeName, saved);
+    }
 
-      if (saved == -1) {
-        await UtilityRateService.instance.removeRateForUnitType(config.unitTypeName);
-      } else {
-        await UtilityRateService.instance.setRateForUnitType(config.unitTypeName, saved);
-      }
+    if (!mounted) return;
+    await _load();
 
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      await _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppTheme.primaryColor,
+          content: Text(
+            saved.isNaN
+                ? 'Custom rate removed for ${config.unitTypeName}. Using default rate.'
+                : 'Saved ${_currencyFormat.format(saved)} for ${config.unitTypeName}.',
+            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
     });
   }
 
