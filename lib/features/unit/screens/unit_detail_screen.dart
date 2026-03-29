@@ -8,6 +8,7 @@ import '../../../features/maintenance/screens/maintenance_history_tab.dart';
 import '../../../models/payment.dart';
 import '../../../models/tenant.dart';
 import '../../../models/unit.dart';
+import '../../../services/maintenance_service.dart';
 import '../../../services/payment_service.dart';
 import '../../../services/receipt_service.dart';
 import '../../../services/supabase_service.dart';
@@ -613,7 +614,17 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
             ),
           ),
           // Maintenance Tab
-          MaintenanceHistoryTab(unitId: _unit.id),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: _UnitFinancialHealthCard(unitId: _unit.id),
+              ),
+              Expanded(
+                child: MaintenanceHistoryTab(unitId: _unit.id),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -661,6 +672,130 @@ class _SummaryBadge extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _UnitFinancialHealthCard extends StatefulWidget {
+  const _UnitFinancialHealthCard({required this.unitId});
+
+  final String unitId;
+
+  @override
+  State<_UnitFinancialHealthCard> createState() => _UnitFinancialHealthCardState();
+}
+
+class _UnitFinancialHealthCardState extends State<_UnitFinancialHealthCard> {
+  static const String _fontFamily = 'Comic Sans MS';
+  static final NumberFormat _currencyFormat =
+      NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+
+  bool _isLoading = true;
+  String? _error;
+  double _totalMaintenanceSpend = 0;
+  double _totalRentGenerated = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadHealthData();
+  }
+
+  Future<void> _loadHealthData() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final maintenanceSpend =
+          await MaintenanceService.instance.getUnitTotalMaintenanceSpend(widget.unitId);
+      final rentGenerated =
+          await PaymentService.instance.fetchTotalPaidAllTimeByUnit(widget.unitId);
+
+      if (!mounted) return;
+      setState(() {
+        _totalMaintenanceSpend = maintenanceSpend;
+        _totalRentGenerated = rentGenerated;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Failed to load unit financial health: $error';
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = _totalRentGenerated <= 0 ? 0 : (_totalMaintenanceSpend / _totalRentGenerated);
+    final isHighMaintenance = _totalRentGenerated > 0 && ratio > 0.20;
+
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+                ? Text(
+                    _error!,
+                    style: const TextStyle(
+                      fontFamily: _fontFamily,
+                      color: Colors.redAccent,
+                    ),
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Unit Financial Health',
+                        style: TextStyle(
+                          fontFamily: _fontFamily,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Total Maintenance Spend: ${_currencyFormat.format(_totalMaintenanceSpend)}',
+                        style: const TextStyle(fontFamily: _fontFamily),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Total Rent Generated: ${_currencyFormat.format(_totalRentGenerated)}',
+                        style: const TextStyle(fontFamily: _fontFamily),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Spend Ratio: ${(ratio * 100).toStringAsFixed(1)}%',
+                        style: const TextStyle(fontFamily: _fontFamily),
+                      ),
+                      if (isHighMaintenance) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFACC15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'High Maintenance Warning: Maintenance exceeds 20% of rent.',
+                            style: TextStyle(
+                              fontFamily: _fontFamily,
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
       ),
     );
   }

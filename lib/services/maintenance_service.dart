@@ -190,6 +190,42 @@ class MaintenanceService {
     }
   }
 
+  Future<List<MaintenanceRequest>> getMaintenanceRequestsByContractor(String contractorId) async {
+    try {
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('*, contractors(id, name, phone, specialty)')
+          .eq('contractor_id', contractorId)
+          .order('created_at', ascending: false);
+
+      return (response as List)
+          .map((item) => MaintenanceRequest.fromMap(item as Map<String, dynamic>))
+          .toList();
+    } catch (e) {
+      throw Exception('Failed to fetch contractor maintenance history: $e');
+    }
+  }
+
+  Future<double> getUnitTotalMaintenanceSpend(String unitId) async {
+    try {
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('actual_cost')
+          .eq('unit_id', unitId)
+          .not('actual_cost', 'is', null);
+
+      double total = 0;
+      for (final row in response as List) {
+        final raw = (row as Map<String, dynamic>)['actual_cost'];
+        total += raw is num ? raw.toDouble() : double.tryParse(raw.toString()) ?? 0;
+      }
+
+      return total;
+    } catch (e) {
+      throw Exception('Failed to fetch unit maintenance spend: $e');
+    }
+  }
+
   Future<void> resolveMaintenanceRequest({
     required String requestId,
     required double actualCost,

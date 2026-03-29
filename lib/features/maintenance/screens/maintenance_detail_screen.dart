@@ -8,6 +8,7 @@ import '../../../core/theme.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../models/contractor.dart';
 import 'add_maintenance_screen.dart';
+import 'contractor_profile_screen.dart';
 import '../../../services/maintenance_service.dart';
 
 class MaintenanceDetailScreen extends StatefulWidget {
@@ -99,6 +100,16 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
     }
   }
 
+  Future<void> _openContractorProfile(Contractor contractor) async {
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ContractorProfileScreen(contractor: contractor),
+      ),
+    );
+    if (!mounted) return;
+  }
+
   Color _priorityColor(MaintenancePriority priority) {
     switch (priority) {
       case MaintenancePriority.high:
@@ -187,6 +198,20 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
           icon: const Icon(Icons.call, size: 16),
           label: const Text(
             'Call Contractor',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+        const SizedBox(width: 8),
+        OutlinedButton(
+          onPressed: () {
+            _openContractorProfile(contractor);
+          },
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Color(0xFF0D9488)),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          ),
+          child: const Text(
+            'View Profile',
             style: TextStyle(fontFamily: AppTheme.appFontFamily),
           ),
         ),

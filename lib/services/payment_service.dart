@@ -123,4 +123,20 @@ class PaymentService {
 
     return total;
   }
+
+  Future<double> fetchTotalPaidAllTimeByUnit(String unitId) async {
+    final client = SupabaseConfig.getClient();
+    final rows = await client
+        .from('payments')
+        .select('amount_paid')
+        .eq('unit_id', unitId);
+
+    double total = 0;
+    for (final row in rows) {
+      final raw = row['amount_paid'];
+      total += raw is num ? raw.toDouble() : double.tryParse(raw.toString()) ?? 0;
+    }
+
+    return total;
+  }
 }
