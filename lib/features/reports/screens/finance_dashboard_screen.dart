@@ -32,6 +32,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
 
   double _rentCollected = 0;
   double _pendingRent = 0;
+  Map<String, double> _expenseByCategory = const {};
   PotentialIncomeSnapshot _potentialIncome = const PotentialIncomeSnapshot(
     totalUnits: 0,
     occupiedUnits: 0,
@@ -63,9 +64,11 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
       final expenses = await _financeService.getExpensesForRange(_selectedRange);
       final snapshot = await _financeService.getRentCollectionSnapshot(_selectedRange);
       final trend = await _financeService.getSixMonthTrend();
-        final taxLiability = await _financeService.getCurrentMonthMriTax();
-        final potentialIncome =
+      final taxLiability = await _financeService.getCurrentMonthMriTax();
+      final potentialIncome =
           await _financeService.getPotentialIncomeSnapshot(range: _selectedRange);
+      final expenseByCategory =
+          await _financeService.getExpenseBreakdownByCategory(_selectedRange);
 
       if (!mounted) return;
 
@@ -76,6 +79,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
         _taxLiability = taxLiability;
         _rentCollected = snapshot.collected;
         _pendingRent = snapshot.pending;
+        _expenseByCategory = expenseByCategory;
         _potentialIncome = potentialIncome;
         _trend = trend;
         _isLoading = false;
@@ -597,6 +601,98 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     );
   }
 
+  Widget _buildExpenseCategoryChartCard() {
+    final entries = _expenseByCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    final total = entries.fold<double>(0, (sum, item) => sum + item.value);
+    final hasData = total > 0;
+    const palette = [
+      Color(0xFF0D9488),
+      Color(0xFFF97316),
+      Color(0xFFF87171),
+    ];
+
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Maintenance Expense by Category',
+              style: TextStyle(
+                fontFamily: _fontFamily,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 16),
+            if (!hasData)
+              const Text(
+                'No maintenance expense data for this range.',
+                style: TextStyle(fontFamily: _fontFamily),
+              )
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final chartSize = constraints.maxWidth < 360 ? 170.0 : 210.0;
+
+                  return Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(
+                        width: chartSize,
+                        height: chartSize,
+                        child: PieChart(
+                          PieChartData(
+                            centerSpaceRadius: chartSize * 0.22,
+                            sectionsSpace: 3,
+                            sections: [
+                              for (int i = 0; i < entries.length; i++)
+                                PieChartSectionData(
+                                  color: palette[i % palette.length],
+                                  value: entries[i].value,
+                                  title: '${((entries[i].value / total) * 100).toStringAsFixed(1)}%',
+                                  titleStyle: const TextStyle(
+                                    fontFamily: _fontFamily,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 210, maxWidth: 290),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (int i = 0; i < entries.length; i++) ...[
+                              _buildLegendLine(
+                                color: palette[i % palette.length],
+                                label: entries[i].key,
+                                value: _currencyFormat.format(entries[i].value),
+                              ),
+                              if (i != entries.length - 1) const SizedBox(height: 10),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   List<BarChartGroupData> _buildBarGroups() {
     final groups = <BarChartGroupData>[];
 
@@ -725,6 +821,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                         _buildTaxLiabilityCard(),
                         const SizedBox(height: 16),
                         _buildPieChartCard(),
+                        const SizedBox(height: 16),
+                        _buildExpenseCategoryChartCard(),
                         const SizedBox(height: 16),
                         _buildPotentialIncomeCard(),
                         const SizedBox(height: 16),

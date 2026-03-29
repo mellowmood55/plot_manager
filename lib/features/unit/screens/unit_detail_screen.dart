@@ -8,6 +8,7 @@ import '../../../features/maintenance/screens/maintenance_history_tab.dart';
 import '../../../models/payment.dart';
 import '../../../models/tenant.dart';
 import '../../../models/unit.dart';
+import '../../../services/maintenance_service.dart';
 import '../../../services/payment_service.dart';
 import '../../../services/receipt_service.dart';
 import '../../../services/supabase_service.dart';
@@ -37,6 +38,10 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
   List<PaymentRecord> _payments = [];
   double _totalPaidThisMonth = 0;
   double _balanceDue = 0;
+  bool _isUnitHealthLoading = true;
+  String? _unitHealthError;
+  double _unitMaintenanceSpend = 0;
+  double _unitRentGenerated = 0;
   bool _isGeneratingReceipt = false;
   late TabController _tabController;
 
@@ -69,12 +74,26 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
     setState(() {
       _isPaymentLoading = true;
       _paymentError = null;
+      _isUnitHealthLoading = true;
+      _unitHealthError = null;
     });
 
     try {
       final paymentHistory = await PaymentService.instance.fetchPaymentHistoryByUnit(_unit.id);
       final paidThisMonth = await PaymentService.instance.fetchTotalPaidThisMonth(_unit.id);
       final balanceDue = (_unit.rentAmount - paidThisMonth).toDouble();
+      final rentGenerated = paymentHistory.fold<double>(
+        0,
+        (sum, item) => sum + item.amountPaid,
+      );
+
+      double maintenanceSpend = 0;
+      String? healthError;
+      try {
+        maintenanceSpend = await MaintenanceService.instance.getUnitMaintenanceSpend(_unit.id);
+      } catch (error) {
+        healthError = 'Failed to load unit health: $error';
+      }
 
       if (!mounted) return;
 
@@ -82,6 +101,10 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
         _payments = paymentHistory;
         _totalPaidThisMonth = paidThisMonth;
         _balanceDue = balanceDue;
+        _unitRentGenerated = rentGenerated;
+        _unitMaintenanceSpend = maintenanceSpend;
+        _isUnitHealthLoading = false;
+        _unitHealthError = healthError;
         _isPaymentLoading = false;
       });
     } catch (error) {
@@ -89,9 +112,124 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
 
       setState(() {
         _isPaymentLoading = false;
+        _isUnitHealthLoading = false;
         _paymentError = 'Failed to load payments: $error';
       });
     }
+  }
+
+  Future<void> _refreshUnitHealth() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isUnitHealthLoading = true;
+      _unitHealthError = null;
+    });
+
+    try {
+      final maintenanceSpend = await MaintenanceService.instance.getUnitMaintenanceSpend(_unit.id);
+      if (!mounted) return;
+
+      setState(() {
+        _unitMaintenanceSpend = maintenanceSpend;
+        _isUnitHealthLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        _isUnitHealthLoading = false;
+        _unitHealthError = 'Failed to refresh unit health: $error';
+      });
+    }
+  }
+
+  Widget _buildUnitFinancialHealthCard() {
+    if (_isUnitHealthLoading) {
+      return const Card(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      );
+    }
+
+    if (_unitHealthError != null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Text(
+            _unitHealthError!,
+            style: const TextStyle(
+              fontFamily: 'Comic Sans MS',
+              color: Colors.redAccent,
+            ),
+          ),
+        ),
+      );
+    }
+
+    final ratio = _unitRentGenerated <= 0 ? 0.0 : (_unitMaintenanceSpend / _unitRentGenerated);
+    final ratioPercent = (ratio * 100).clamp(0, 999).toDouble();
+    final hasWarning = ratio > 0.20;
+
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Unit Financial Health',
+              style: TextStyle(
+                fontFamily: 'Comic Sans MS',
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Total Rent Generated: ${_currency(_unitRentGenerated)}',
+              style: const TextStyle(fontFamily: 'Comic Sans MS'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Total Maintenance Spend: ${_currency(_unitMaintenanceSpend)}',
+              style: const TextStyle(fontFamily: 'Comic Sans MS'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Maintenance Ratio: ${ratioPercent.toStringAsFixed(1)}%',
+              style: const TextStyle(
+                fontFamily: 'Comic Sans MS',
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            if (hasWarning) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF97316).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFF97316)),
+                ),
+                child: const Text(
+                  'High Maintenance Warning: Spend exceeds 20% of total rent generated.',
+                  style: TextStyle(
+                    fontFamily: 'Comic Sans MS',
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFFFACC15),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _openLogPaymentScreen() async {
@@ -613,7 +751,20 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
             ),
           ),
           // Maintenance Tab
-          MaintenanceHistoryTab(unitId: _unit.id),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 10),
+                child: _buildUnitFinancialHealthCard(),
+              ),
+              Expanded(
+                child: MaintenanceHistoryTab(
+                  unitId: _unit.id,
+                  onMaintenanceChanged: _refreshUnitHealth,
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

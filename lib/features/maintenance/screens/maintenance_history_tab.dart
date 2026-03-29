@@ -6,10 +6,12 @@ import 'maintenance_detail_screen.dart';
 
 class MaintenanceHistoryTab extends StatefulWidget {
   final String unitId;
+  final VoidCallback? onMaintenanceChanged;
 
   const MaintenanceHistoryTab({
     Key? key,
     required this.unitId,
+    this.onMaintenanceChanged,
   }) : super(key: key);
 
   @override
@@ -91,6 +93,7 @@ class _MaintenanceHistoryTabState extends State<MaintenanceHistoryTab> {
                       if (mounted) {
                         setState(() => _loadHistory());
                       }
+                      widget.onMaintenanceChanged?.call();
                     });
                 },
                 icon: const Icon(Icons.add),
@@ -122,6 +125,7 @@ class _MaintenanceHistoryTabState extends State<MaintenanceHistoryTab> {
                           );
                           if (!mounted) return;
                           setState(_loadHistory);
+                          widget.onMaintenanceChanged?.call();
                         },
                         child: _MaintenanceCard(
                           request: request,

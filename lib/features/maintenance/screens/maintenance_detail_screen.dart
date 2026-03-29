@@ -8,6 +8,7 @@ import '../../../core/theme.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../models/contractor.dart';
 import 'add_maintenance_screen.dart';
+import 'contractor_profile_screen.dart';
 import '../../../services/maintenance_service.dart';
 
 class MaintenanceDetailScreen extends StatefulWidget {
@@ -52,6 +53,22 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _openContractorProfile(Contractor contractor) async {
+    if (!mounted) return;
+
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ContractorProfileScreen(
+          contractorId: contractor.id,
+          initialContractor: contractor,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    setState(_loadRequest);
   }
 
   Future<void> _openResolveDialog(MaintenanceRequest request) async {
@@ -167,28 +184,42 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
   }
 
   Widget _buildContractorRow(Contractor contractor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: Text(
-            'Assigned Contractor: ${contractor.name} - ${contractor.specialty}',
-            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-            overflow: TextOverflow.ellipsis,
-          ),
+        Text(
+          'Assigned Contractor: ${contractor.name} - ${contractor.specialty}',
+          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+          overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(width: 8),
-        ElevatedButton.icon(
-          onPressed: () => _callContractor(contractor.phone),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppTheme.primaryColor,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          ),
-          icon: const Icon(Icons.call, size: 16),
-          label: const Text(
-            'Call Contractor',
-            style: TextStyle(fontFamily: AppTheme.appFontFamily),
-          ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            ElevatedButton.icon(
+              onPressed: () => _callContractor(contractor.phone),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              ),
+              icon: const Icon(Icons.call, size: 16),
+              label: const Text(
+                'Call Contractor',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+            ),
+            OutlinedButton.icon(
+              onPressed: () {
+                _openContractorProfile(contractor);
+              },
+              icon: const Icon(Icons.person),
+              label: const Text(
+                'View Profile',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+            ),
+          ],
         ),
       ],
     );
