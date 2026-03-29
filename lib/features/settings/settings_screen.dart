@@ -115,9 +115,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await UtilityRateService.instance.setDefaultRate(savedRate);
 
     if (!mounted) return;
-
-    setState(() {
-      _utilityRate = savedRate;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _utilityRate = savedRate;
+      });
     });
   }
 
@@ -356,14 +358,16 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
     }
 
     if (!mounted) return;
-
-    final normalizedKey = config.unitTypeName.trim().toLowerCase();
-    setState(() {
-      if (saved.isNaN) {
-        _rateMap.remove(normalizedKey);
-      } else {
-        _rateMap[normalizedKey] = saved;
-      }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final normalizedKey = config.unitTypeName.trim().toLowerCase();
+      setState(() {
+        if (saved.isNaN) {
+          _rateMap.remove(normalizedKey);
+        } else {
+          _rateMap[normalizedKey] = saved;
+        }
+      });
     });
   }
 
