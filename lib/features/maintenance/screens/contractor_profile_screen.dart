@@ -6,14 +6,17 @@ import '../../../core/theme.dart';
 import '../../../models/contractor.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
+import 'maintenance_detail_screen.dart';
 
 class ContractorProfileScreen extends StatefulWidget {
   const ContractorProfileScreen({
-    required this.contractor,
+    required this.contractorId,
+    this.initialContractor,
     super.key,
   });
 
-  final Contractor contractor;
+  final String contractorId;
+  final Contractor? initialContractor;
 
   @override
   State<ContractorProfileScreen> createState() => _ContractorProfileScreenState();
@@ -21,51 +24,40 @@ class ContractorProfileScreen extends StatefulWidget {
 
 class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
   static const String _fontFamily = 'Comic Sans MS';
-  static final NumberFormat _currency = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
+  final NumberFormat _currencyFormat = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
 
   bool _isLoading = true;
   String? _error;
+  Contractor? _contractor;
   List<MaintenanceRequest> _history = const [];
-  int _totalJobsCompleted = 0;
-  double _totalEarnings = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _contractor = widget.initialContractor;
+    _load();
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _load() async {
     if (!mounted) return;
-
     setState(() {
       _isLoading = true;
       _error = null;
     });
 
     try {
-      final history = await MaintenanceService.instance
-          .getMaintenanceRequestsByContractor(widget.contractor.id);
+      final contractorFuture = MaintenanceService.instance.getContractorById(widget.contractorId);
+      final historyFuture =
+          MaintenanceService.instance.getMaintenanceRequestsByContractor(widget.contractorId);
+      final results = await Future.wait<dynamic>([contractorFuture, historyFuture]);
 
-      int jobsCompleted = 0;
-      double earnings = 0;
-      for (final request in history) {
-        final isResolved = request.status == MaintenanceStatus.completed ||
-            request.status == MaintenanceStatus.closed ||
-            request.resolvedAt != null;
-        if (!isResolved) {
-          continue;
-        }
-
-        jobsCompleted += 1;
-        earnings += request.actualCost ?? 0;
-      }
+      final contractor = results[0] as Contractor?;
+      final history = results[1] as List<MaintenanceRequest>;
 
       if (!mounted) return;
       setState(() {
+        _contractor = contractor ?? _contractor;
         _history = history;
-        _totalJobsCompleted = jobsCompleted;
-        _totalEarnings = earnings;
         _isLoading = false;
       });
     } catch (error) {
@@ -78,7 +70,22 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
   }
 
   Future<void> _callContractor() async {
-    final uri = Uri(scheme: 'tel', path: widget.contractor.phone);
+    final phone = _contractor?.phone.trim() ?? '';
+    if (phone.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red.shade700,
+          content: const Text(
+            'Contractor phone number is missing.',
+            style: TextStyle(fontFamily: _fontFamily),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final uri = Uri(scheme: 'tel', path: phone);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri);
       return;
@@ -86,62 +93,30 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
 
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        backgroundColor: Colors.redAccent,
-        content: Text(
-          'Could not launch dialer for contractor.',
+      SnackBar(
+        backgroundColor: Colors.red.shade700,
+        content: const Text(
+          'Could not open dialer for contractor.',
           style: TextStyle(fontFamily: _fontFamily),
         ),
       ),
     );
   }
 
-  String _formatDate(DateTime date) {
-    final month = date.month.toString().padLeft(2, '0');
-    final day = date.day.toString().padLeft(2, '0');
-    return '${date.year}-$month-$day';
-  }
-
-  Widget _buildStatCard({
-    required String title,
-    required String value,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Card(
-        color: AppTheme.surfaceColor,
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontFamily: _fontFamily,
-                  color: Color(0xFFCBD5E1),
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                value,
-                style: TextStyle(
-                  fontFamily: _fontFamily,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                  color: color,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  bool _isResolved(MaintenanceRequest item) {
+    return item.status == MaintenanceStatus.completed || item.status == MaintenanceStatus.closed;
   }
 
   @override
   Widget build(BuildContext context) {
+    final contractor = _contractor;
+    final resolved = _history.where(_isResolved).toList();
+    final totalCompleted = resolved.length;
+    final totalEarnings = resolved.fold<double>(
+      0,
+      (sum, item) => sum + (item.actualCost ?? 0),
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -162,128 +137,189 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                     ),
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _loadProfile,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16),
-                    children: [
-                      Card(
-                        color: AppTheme.surfaceColor,
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                widget.contractor.name,
-                                style: const TextStyle(
-                                  fontFamily: _fontFamily,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 24,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Specialty: ${widget.contractor.specialty}',
-                                style: const TextStyle(
-                                  fontFamily: _fontFamily,
-                                  color: Color(0xFFCBD5E1),
-                                  fontSize: 15,
-                                ),
-                              ),
-                              const SizedBox(height: 14),
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _callContractor,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF0D9488),
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 16),
-                                  ),
-                                  icon: const Icon(Icons.call, size: 22),
-                                  label: const Text(
-                                    'Call Contractor',
-                                    style: TextStyle(
+              : contractor == null
+                  ? const Center(
+                      child: Text(
+                        'Contractor not found.',
+                        style: TextStyle(fontFamily: _fontFamily),
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      child: ListView(
+                        padding: const EdgeInsets.all(16),
+                        children: [
+                          Card(
+                            color: AppTheme.surfaceColor,
+                            child: Padding(
+                              padding: const EdgeInsets.all(18),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    contractor.name,
+                                    style: const TextStyle(
                                       fontFamily: _fontFamily,
+                                      fontSize: 24,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 18,
                                     ),
                                   ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    contractor.specialty,
+                                    style: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      fontSize: 16,
+                                      color: Color(0xFFCBD5E1),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _callContractor,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF0D9488),
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(vertical: 16),
+                                      ),
+                                      icon: const Icon(Icons.call, size: 22),
+                                      label: const Text(
+                                        'Call Contractor',
+                                        style: TextStyle(
+                                          fontFamily: _fontFamily,
+                                          fontWeight: FontWeight.w700,
+                                          fontSize: 18,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _StatCard(
+                                  title: 'Total Jobs Completed',
+                                  value: totalCompleted.toString(),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _StatCard(
+                                  title: 'Total Earnings',
+                                  value: _currencyFormat.format(totalEarnings),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _buildStatCard(
-                            title: 'Total Jobs Completed',
-                            value: _totalJobsCompleted.toString(),
-                            color: const Color(0xFF0D9488),
+                          const SizedBox(height: 14),
+                          const Text(
+                            'Maintenance History',
+                            style: TextStyle(
+                              fontFamily: _fontFamily,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
                           ),
-                          const SizedBox(width: 12),
-                          _buildStatCard(
-                            title: 'Total Earnings',
-                            value: _currency.format(_totalEarnings),
-                            color: const Color(0xFFF97316),
-                          ),
+                          const SizedBox(height: 10),
+                          if (_history.isEmpty)
+                            const Card(
+                              child: Padding(
+                                padding: EdgeInsets.all(16),
+                                child: Text(
+                                  'No maintenance history yet for this contractor.',
+                                  style: TextStyle(fontFamily: _fontFamily),
+                                ),
+                              ),
+                            )
+                          else
+                            ..._history.map(
+                              (item) => Card(
+                                color: AppTheme.surfaceColor,
+                                child: ListTile(
+                                  title: Text(
+                                    item.title,
+                                    style: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    '${item.category} • ${item.status.displayName}',
+                                    style: const TextStyle(fontFamily: _fontFamily),
+                                  ),
+                                  trailing: Text(
+                                    item.actualCost == null
+                                        ? '-'
+                                        : _currencyFormat.format(item.actualCost),
+                                    style: const TextStyle(
+                                      fontFamily: _fontFamily,
+                                      color: Color(0xFF0D9488),
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  onTap: () async {
+                                    if (!mounted) return;
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => MaintenanceDetailScreen(requestId: item.id),
+                                      ),
+                                    );
+                                    if (!mounted) return;
+                                    await _load();
+                                  },
+                                ),
+                              ),
+                            ),
                         ],
                       ),
-                      const SizedBox(height: 14),
-                      const Text(
-                        'Maintenance History',
-                        style: TextStyle(
-                          fontFamily: _fontFamily,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_history.isEmpty)
-                        Card(
-                          color: AppTheme.surfaceColor,
-                          child: const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Text(
-                              'No tickets assigned to this contractor yet.',
-                              style: TextStyle(fontFamily: _fontFamily),
-                            ),
-                          ),
-                        )
-                      else
-                        ..._history.map(
-                          (request) => Card(
-                            color: AppTheme.surfaceColor,
-                            margin: const EdgeInsets.only(bottom: 10),
-                            child: ListTile(
-                              title: Text(
-                                request.title,
-                                style: const TextStyle(
-                                  fontFamily: _fontFamily,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              subtitle: Text(
-                                '${request.category}  •  ${request.status.displayName}  •  ${_formatDate(request.createdAt)}',
-                                style: const TextStyle(fontFamily: _fontFamily),
-                              ),
-                              trailing: Text(
-                                _currency.format(request.actualCost ?? 0),
-                                style: const TextStyle(
-                                  fontFamily: _fontFamily,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFF97316),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
+                    ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.title,
+    required this.value,
+  });
+
+  final String title;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: AppTheme.surfaceColor,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Comic Sans MS',
+                fontSize: 13,
+                color: Color(0xFFCBD5E1),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'Comic Sans MS',
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

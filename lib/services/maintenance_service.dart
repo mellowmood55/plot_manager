@@ -176,20 +176,6 @@ class MaintenanceService {
     }
   }
 
-  Future<MaintenanceRequest> getMaintenanceRequestById(String requestId) async {
-    try {
-      final response = await _supabase
-          .from('maintenance_requests')
-          .select('*, contractors(id, name, phone, specialty)')
-          .eq('id', requestId)
-          .single();
-
-      return MaintenanceRequest.fromMap(response);
-    } catch (e) {
-      throw Exception('Failed to fetch maintenance request: $e');
-    }
-  }
-
   Future<List<MaintenanceRequest>> getMaintenanceRequestsByContractor(String contractorId) async {
     try {
       final response = await _supabase
@@ -202,27 +188,42 @@ class MaintenanceService {
           .map((item) => MaintenanceRequest.fromMap(item as Map<String, dynamic>))
           .toList();
     } catch (e) {
-      throw Exception('Failed to fetch contractor maintenance history: $e');
+      throw Exception('Failed to fetch contractor history: $e');
     }
   }
 
-  Future<double> getUnitTotalMaintenanceSpend(String unitId) async {
+  Future<double> getUnitMaintenanceSpend(String unitId) async {
     try {
       final response = await _supabase
           .from('maintenance_requests')
-          .select('actual_cost')
+          .select('actual_cost, status')
           .eq('unit_id', unitId)
+          .inFilter('status', ['completed', 'closed'])
           .not('actual_cost', 'is', null);
 
       double total = 0;
       for (final row in response as List) {
-        final raw = (row as Map<String, dynamic>)['actual_cost'];
+        final raw = row['actual_cost'];
         total += raw is num ? raw.toDouble() : double.tryParse(raw.toString()) ?? 0;
       }
 
       return total;
     } catch (e) {
       throw Exception('Failed to fetch unit maintenance spend: $e');
+    }
+  }
+
+  Future<MaintenanceRequest> getMaintenanceRequestById(String requestId) async {
+    try {
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('*, contractors(id, name, phone, specialty)')
+          .eq('id', requestId)
+          .single();
+
+      return MaintenanceRequest.fromMap(response);
+    } catch (e) {
+      throw Exception('Failed to fetch maintenance request: $e');
     }
   }
 

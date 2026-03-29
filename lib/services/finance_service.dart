@@ -65,16 +65,6 @@ class PotentialIncomeSnapshot {
   final double occupancyRate;
 }
 
-class ExpenseCategoryBreakdownItem {
-  const ExpenseCategoryBreakdownItem({
-    required this.category,
-    required this.amount,
-  });
-
-  final String category;
-  final double amount;
-}
-
 class _DateBounds {
   const _DateBounds(this.startInclusive, this.endExclusive);
 
@@ -138,6 +128,52 @@ class FinanceService {
   Future<double> getExpensesForRange(FinanceRange range) async {
     final bounds = _rangeBounds(range);
     return _sumExpensesInRange(bounds.startInclusive, bounds.endExclusive);
+  }
+
+  Future<Map<String, double>> getExpenseBreakdownByCategory(FinanceRange range) async {
+    final unitIds = await _fetchOrganizationUnitIds();
+    if (unitIds.isEmpty) {
+      return const {};
+    }
+
+    final bounds = _rangeBounds(range);
+    final client = SupabaseConfig.getClient();
+
+    final rows = await client
+        .from('maintenance_requests')
+        .select('category, actual_cost, resolved_at, created_at')
+        .inFilter('unit_id', unitIds)
+        .not('actual_cost', 'is', null);
+
+    final result = <String, double>{};
+
+    for (final row in rows) {
+      final rawTimestamp = row['resolved_at'] ?? row['created_at'];
+      if (rawTimestamp == null) {
+        continue;
+      }
+
+      final timestamp = DateTime.tryParse(rawTimestamp.toString());
+      if (timestamp == null) {
+        continue;
+      }
+
+      final inRange = !timestamp.isBefore(bounds.startInclusive) && timestamp.isBefore(bounds.endExclusive);
+      if (!inRange) {
+        continue;
+      }
+
+      final categoryRaw = (row['category'] ?? '').toString().trim();
+      final category = categoryRaw.isEmpty ? 'Uncategorized' : categoryRaw;
+      final amount = _parseDouble(row['actual_cost']);
+      if (amount <= 0) {
+        continue;
+      }
+
+      result[category] = (result[category] ?? 0) + amount;
+    }
+
+    return result;
   }
 
   Future<RentCollectionSnapshot> getRentCollectionSnapshot(FinanceRange range) async {
@@ -270,64 +306,6 @@ class FinanceService {
 
     arrears.sort((a, b) => b.balanceDue.compareTo(a.balanceDue));
     return arrears;
-  }
-
-  Future<List<ExpenseCategoryBreakdownItem>> getExpenseCategoryBreakdown(
-    FinanceRange range,
-  ) async {
-    final unitIds = await _fetchOrganizationUnitIds();
-    if (unitIds.isEmpty) {
-      return const [];
-    }
-
-    final bounds = _rangeBounds(range);
-    final client = SupabaseConfig.getClient();
-    final rows = await client
-        .from('maintenance_requests')
-        .select('category, actual_cost, resolved_at, created_at')
-        .inFilter('unit_id', unitIds)
-        .not('actual_cost', 'is', null);
-
-    final totals = <String, double>{};
-
-    for (final row in rows) {
-      final rawTimestamp = row['resolved_at'] ?? row['created_at'];
-      if (rawTimestamp == null) {
-        continue;
-      }
-
-      final timestamp = DateTime.tryParse(rawTimestamp.toString());
-      if (timestamp == null) {
-        continue;
-      }
-
-      final inRange = !timestamp.isBefore(bounds.startInclusive) &&
-          timestamp.isBefore(bounds.endExclusive);
-      if (!inRange) {
-        continue;
-      }
-
-      final categoryRaw = (row['category'] ?? '').toString().trim();
-      final category = categoryRaw.isEmpty ? 'General' : categoryRaw;
-      final amount = _parseDouble(row['actual_cost']);
-      if (amount <= 0) {
-        continue;
-      }
-
-      totals[category] = (totals[category] ?? 0) + amount;
-    }
-
-    final items = totals.entries
-        .map(
-          (entry) => ExpenseCategoryBreakdownItem(
-            category: entry.key,
-            amount: entry.value,
-          ),
-        )
-        .toList();
-
-    items.sort((a, b) => b.amount.compareTo(a.amount));
-    return items;
   }
 
   Future<List<String>> _fetchOrganizationUnitIds() async {

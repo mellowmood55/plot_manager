@@ -32,6 +32,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
 
   double _rentCollected = 0;
   double _pendingRent = 0;
+  Map<String, double> _expenseByCategory = const {};
   PotentialIncomeSnapshot _potentialIncome = const PotentialIncomeSnapshot(
     totalUnits: 0,
     occupiedUnits: 0,
@@ -43,7 +44,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   );
 
   List<MonthlyFinancePoint> _trend = const [];
-  List<ExpenseCategoryBreakdownItem> _expenseByCategory = const [];
 
   @override
   void initState() {
@@ -68,7 +68,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
       final potentialIncome =
           await _financeService.getPotentialIncomeSnapshot(range: _selectedRange);
       final expenseByCategory =
-          await _financeService.getExpenseCategoryBreakdown(_selectedRange);
+          await _financeService.getExpenseBreakdownByCategory(_selectedRange);
 
       if (!mounted) return;
 
@@ -79,9 +79,9 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
         _taxLiability = taxLiability;
         _rentCollected = snapshot.collected;
         _pendingRent = snapshot.pending;
+        _expenseByCategory = expenseByCategory;
         _potentialIncome = potentialIncome;
         _trend = trend;
-        _expenseByCategory = expenseByCategory;
         _isLoading = false;
       });
     } catch (error) {
@@ -601,16 +601,16 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     );
   }
 
-  Widget _buildExpenseCategoryPieCard() {
-    final total = _expenseByCategory.fold<double>(
-      0,
-      (sum, item) => sum + item.amount,
-    );
+  Widget _buildExpenseCategoryChartCard() {
+    final entries = _expenseByCategory.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-    final colors = <Color>[
-      const Color(0xFF0D9488), // Teal
-      const Color(0xFFF97316), // Orange
-      const Color(0xFFFB7185), // Coral
+    final total = entries.fold<double>(0, (sum, item) => sum + item.value);
+    final hasData = total > 0;
+    const palette = [
+      Color(0xFF0D9488),
+      Color(0xFFF97316),
+      Color(0xFFF87171),
     ];
 
     return Card(
@@ -629,63 +629,58 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            if (_expenseByCategory.isEmpty || total <= 0)
+            if (!hasData)
               const Text(
-                'No maintenance expense data in this range.',
+                'No maintenance expense data for this range.',
                 style: TextStyle(fontFamily: _fontFamily),
               )
             else
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final chartSize = constraints.maxWidth < 360 ? 170.0 : 220.0;
+                  final chartSize = constraints.maxWidth < 360 ? 170.0 : 210.0;
+
                   return Wrap(
                     spacing: 16,
                     runSpacing: 12,
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
                       SizedBox(
                         width: chartSize,
                         height: chartSize,
                         child: PieChart(
                           PieChartData(
-                            centerSpaceRadius: chartSize * 0.24,
+                            centerSpaceRadius: chartSize * 0.22,
                             sectionsSpace: 3,
-                            sections: _expenseByCategory.asMap().entries.map((entry) {
-                              final index = entry.key;
-                              final item = entry.value;
-                              final pct = (item.amount / total) * 100;
-                              return PieChartSectionData(
-                                color: colors[index % colors.length],
-                                value: item.amount,
-                                title: '${pct.toStringAsFixed(1)}%',
-                                titleStyle: const TextStyle(
-                                  fontFamily: _fontFamily,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                            sections: [
+                              for (int i = 0; i < entries.length; i++)
+                                PieChartSectionData(
+                                  color: palette[i % palette.length],
+                                  value: entries[i].value,
+                                  title: '${((entries[i].value / total) * 100).toStringAsFixed(1)}%',
+                                  titleStyle: const TextStyle(
+                                    fontFamily: _fontFamily,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.white,
+                                  ),
                                 ),
-                              );
-                            }).toList(),
+                            ],
                           ),
                         ),
                       ),
                       ConstrainedBox(
-                        constraints: const BoxConstraints(minWidth: 220, maxWidth: 300),
+                        constraints: const BoxConstraints(minWidth: 210, maxWidth: 290),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: _expenseByCategory.asMap().entries.map((entry) {
-                            final index = entry.key;
-                            final item = entry.value;
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _buildLegendLine(
-                                color: colors[index % colors.length],
-                                label: item.category,
-                                value: _currencyFormat.format(item.amount),
+                          children: [
+                            for (int i = 0; i < entries.length; i++) ...[
+                              _buildLegendLine(
+                                color: palette[i % palette.length],
+                                label: entries[i].key,
+                                value: _currencyFormat.format(entries[i].value),
                               ),
-                            );
-                          }).toList(),
+                              if (i != entries.length - 1) const SizedBox(height: 10),
+                            ],
+                          ],
                         ),
                       ),
                     ],
@@ -827,7 +822,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                         const SizedBox(height: 16),
                         _buildPieChartCard(),
                         const SizedBox(height: 16),
-                        _buildExpenseCategoryPieCard(),
+                        _buildExpenseCategoryChartCard(),
                         const SizedBox(height: 16),
                         _buildPotentialIncomeCard(),
                         const SizedBox(height: 16),
