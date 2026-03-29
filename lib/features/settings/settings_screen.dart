@@ -36,77 +36,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _showUtilityRateDialog() async {
-    final controller = TextEditingController(
-      text: _utilityRate > 0 ? _utilityRate.toStringAsFixed(2) : '',
-    );
-
     final savedRate = await showDialog<double>(
       context: context,
-      builder: (dialogContext) {
-        String? validationError;
-
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.surfaceColor,
-              title: const Text(
-                'Utility Billing Rate',
-                style: TextStyle(fontFamily: AppTheme.appFontFamily),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Rate per unit',
-                      prefixText: r'$ ',
-                      hintText: 'Enter water rate per unit',
-                    ),
-                  ),
-                  if (validationError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      validationError!,
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 12,
-                        fontFamily: AppTheme.appFontFamily,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final value = double.tryParse(controller.text.trim());
-                    if (value == null || value < 0) {
-                      setDialogState(() {
-                        validationError = 'Please enter a valid utility rate.';
-                      });
-                      return;
-                    }
-
-                    Navigator.of(dialogContext).pop(value);
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _RateInputDialog(
+        title: 'Utility Billing Rate',
+        labelText: 'Rate per unit',
+        hintText: 'Enter water rate per unit',
+        initialValue: _utilityRate > 0 ? _utilityRate.toStringAsFixed(2) : '',
+      ),
     );
-
-    controller.dispose();
 
     if (savedRate == null) {
       return;
@@ -260,92 +198,16 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
   Future<void> _editRate(UnitConfiguration config) async {
     final key = config.unitTypeName.trim().toLowerCase();
     final existing = _rateMap[key];
-    final controller = TextEditingController(
-      text: existing != null ? existing.toStringAsFixed(2) : '',
-    );
 
     final saved = await showDialog<double?>(
       context: context,
-      builder: (dialogContext) {
-        String? validationError;
-
-        return StatefulBuilder(
-          builder: (dialogContext, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppTheme.surfaceColor,
-              title: Text(
-                'Rate: ${config.unitTypeName}',
-                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-              ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextField(
-                    controller: controller,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      labelText: 'Rate per unit',
-                      prefixText: r'$ ',
-                    ),
-                  ),
-                  if (validationError != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      validationError!,
-                      style: TextStyle(
-                        color: Colors.red.shade700,
-                        fontSize: 12,
-                        fontFamily: AppTheme.appFontFamily,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop();
-                  },
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    controller.clear();
-                    setDialogState(() {
-                      validationError = null;
-                    });
-                  },
-                  child: const Text('Clear'),
-                ),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop(double.nan);
-                  },
-                  child: const Text('Use Default'),
-                ),
-                ElevatedButton(
-                  onPressed: () {
-                    final raw = controller.text.trim();
-                    final value = double.tryParse(raw);
-                    if (value == null || value < 0) {
-                      setDialogState(() {
-                        validationError = 'Enter a valid non-negative rate.';
-                      });
-                      return;
-                    }
-
-                    Navigator.of(dialogContext).pop(value);
-                  },
-                  child: const Text('Save'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _RateInputDialog(
+        title: 'Rate: ${config.unitTypeName}',
+        labelText: 'Rate per unit',
+        initialValue: existing != null ? existing.toStringAsFixed(2) : '',
+        allowUseDefault: true,
+      ),
     );
-
-    controller.dispose();
 
     if (saved == null) {
       return;
@@ -421,6 +283,118 @@ class _UtilityRateByUnitTypeScreenState extends State<UtilityRateByUnitTypeScree
                     );
                   },
                 ),
+    );
+  }
+}
+
+class _RateInputDialog extends StatefulWidget {
+  const _RateInputDialog({
+    required this.title,
+    required this.labelText,
+    required this.initialValue,
+    this.hintText,
+    this.allowUseDefault = false,
+  });
+
+  final String title;
+  final String labelText;
+  final String initialValue;
+  final String? hintText;
+  final bool allowUseDefault;
+
+  @override
+  State<_RateInputDialog> createState() => _RateInputDialogState();
+}
+
+class _RateInputDialogState extends State<_RateInputDialog> {
+  late final TextEditingController _controller;
+  String? _validationError;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    final value = double.tryParse(_controller.text.trim());
+    if (value == null || value < 0) {
+      setState(() {
+        _validationError = 'Enter a valid non-negative rate.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppTheme.surfaceColor,
+      title: Text(
+        widget.title,
+        style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: widget.labelText,
+              prefixText: r'$ ',
+              hintText: widget.hintText,
+            ),
+          ),
+          if (_validationError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _validationError!,
+              style: TextStyle(
+                color: Colors.red.shade700,
+                fontSize: 12,
+                fontFamily: AppTheme.appFontFamily,
+              ),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            _controller.clear();
+            setState(() {
+              _validationError = null;
+            });
+          },
+          child: const Text('Clear'),
+        ),
+        if (widget.allowUseDefault)
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop(double.nan);
+            },
+            child: const Text('Use Default'),
+          ),
+        ElevatedButton(
+          onPressed: _save,
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
