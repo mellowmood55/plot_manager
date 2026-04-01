@@ -3,6 +3,7 @@ import '../../../core/theme.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
 import 'add_maintenance_screen.dart';
+import 'contractor_registry_screen.dart';
 import 'maintenance_detail_screen.dart';
 
 class MaintenanceListScreen extends StatefulWidget {
@@ -42,6 +43,19 @@ class _MaintenanceListScreenState extends State<MaintenanceListScreen> {
       appBar: AppBar(
         title: const Text('Active Maintenance Requests'),
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Contractor Registry',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ContractorRegistryScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.people_alt_outlined),
+          ),
+        ],
       ),
       body: FutureBuilder<List<MaintenanceRequest>>(
         future: _requestsFuture,

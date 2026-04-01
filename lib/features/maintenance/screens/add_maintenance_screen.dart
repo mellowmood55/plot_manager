@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_contacts/contact.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/contractor.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
+import '../../../services/supabase_service.dart';
+import 'contractor_registry_screen.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
   final String? unitId;
@@ -42,8 +45,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   String? _selectedContractorId;
   bool _isContractorsLoading = true;
   List<Contractor> _contractors = [];
+  Map<String, int> _activeTicketCounts = {};
   String? _selectedTemplateLabel;
-  String _locationScope = 'unscoped';
   Set<String> _selectedContractorRoles = {};
 
   static const List<String> _roleOptions = [
@@ -133,31 +136,96 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   }
 
   Future<void> _loadContractors() async {
+    await _loadContractorsForCategory(_categoryController.text.trim());
+  }
+
+  bool get _hasSelectedCategory => _categoryController.text.trim().isNotEmpty;
+
+  List<Contractor> get _sortedMatchingContractors {
+    final category = _categoryController.text.trim();
+    final matches = _contractors.where((contractor) {
+      if (category.isEmpty) {
+        return true;
+      }
+
+      return contractor.matchesCategory(category);
+    }).toList();
+
+    matches.sort((left, right) {
+      final leftActive = _activeTicketCounts[left.id] ?? 0;
+      final rightActive = _activeTicketCounts[right.id] ?? 0;
+
+      final leftRecommended = leftActive == 0;
+      final rightRecommended = rightActive == 0;
+      if (leftRecommended != rightRecommended) {
+        return leftRecommended ? -1 : 1;
+      }
+
+      final scoreCompare = right.reliabilityScore.compareTo(left.reliabilityScore);
+      if (scoreCompare != 0) {
+        return scoreCompare;
+      }
+
+      final activeCompare = leftActive.compareTo(rightActive);
+      if (activeCompare != 0) {
+        return activeCompare;
+      }
+
+      return left.name.toLowerCase().compareTo(right.name.toLowerCase());
+    });
+
+    return matches;
+  }
+
+  Contractor? get _recommendedContractor {
+    final matches = _sortedMatchingContractors.where((contractor) {
+      return (_activeTicketCounts[contractor.id] ?? 0) == 0;
+    }).toList();
+
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  Future<void> _openContractorRegistry({String? specialty}) async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ContractorRegistryScreen(
+          initialSpecialty: specialty,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    await _loadContractorsForCategory(_categoryController.text.trim());
+  }
+
+  Future<void> _loadContractorsForCategory(String category) async {
     setState(() {
       _isContractorsLoading = true;
     });
 
     try {
-      var resolvedScope = 'unscoped';
-      if (_selectedUnitId != null && _selectedUnitId!.isNotEmpty) {
-        final unitScope = await MaintenanceService.instance.getLocationScopeByUnit(_selectedUnitId!);
-        resolvedScope = unitScope ?? 'unscoped';
-      }
-
+      final resolvedOrganizationId = await SupabaseService.instance.getCurrentOrganizationId();
       final contractors = await MaintenanceService.instance.getContractors(
-        locationScope: resolvedScope,
+        organizationId: resolvedOrganizationId,
+        specialty: category,
       );
+      final activeTicketCounts = await MaintenanceService.instance.getActiveTicketCountsByContractor(
+        organizationId: resolvedOrganizationId,
+      );
+
       if (!mounted) return;
       setState(() {
-        _locationScope = resolvedScope;
         _contractors = contractors;
+        _activeTicketCounts = activeTicketCounts;
         if (_selectedContractorId != null) {
-          final selected = _contractors.where((c) => c.id == _selectedContractorId).toList();
+          final selected = _sortedMatchingContractors.where((c) => c.id == _selectedContractorId).toList();
           if (selected.isNotEmpty) {
             _contractorNameController.text = selected.first.name;
             _contractorPhoneController.text = selected.first.phone;
             _contractorSpecialtyController.text = selected.first.specialty;
             _selectedContractorRoles = _parseRoles(selected.first.specialty);
+          } else {
+            _selectedContractorId = null;
           }
         }
         _isContractorsLoading = false;
@@ -188,12 +256,15 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _titleController.text = template.title;
       _categoryController.text = template.category;
       _estimatedCostController.text = template.estimatedCost.toStringAsFixed(2);
+      _selectedContractorId = null;
       if (_contractorSpecialtyController.text.trim().isEmpty ||
           _contractorSpecialtyController.text == 'General Handyman') {
         _contractorSpecialtyController.text = template.category;
         _selectedContractorRoles = _parseRoles(template.category);
       }
     });
+
+    _loadContractorsForCategory(template.category);
   }
 
   Set<String> _parseRoles(String raw) {
@@ -210,35 +281,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       return;
     }
     _contractorSpecialtyController.text = _selectedContractorRoles.join(', ');
-  }
-
-  List<Contractor> get _filteredContractors {
-    final normalizedCategory = _categoryController.text.trim();
-    if (normalizedCategory.isEmpty) {
-      return _contractors;
-    }
-
-    final matches = _contractors
-        .where((contractor) => contractor.matchesCategory(normalizedCategory))
-        .toList();
-    final others = _contractors
-        .where((contractor) => !contractor.matchesCategory(normalizedCategory))
-        .toList();
-
-    return [...matches, ...others];
-  }
-
-  List<Contractor> get _uniqueFilteredContractors {
-    final seen = <String>{};
-    final unique = <Contractor>[];
-
-    for (final contractor in _filteredContractors) {
-      if (seen.add(contractor.id)) {
-        unique.add(contractor);
-      }
-    }
-
-    return unique;
   }
 
   Future<void> _pickContractorFromContacts() async {
@@ -383,11 +425,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       if ((_contractorNameController.text.trim().isNotEmpty ||
               _contractorPhoneController.text.trim().isNotEmpty) &&
           contractorId == null) {
+        final organizationId = await SupabaseService.instance.getCurrentOrganizationId();
         contractorId = await MaintenanceService.instance.findOrCreateContractor(
           name: _contractorNameController.text,
           phone: _contractorPhoneController.text,
           specialty: _contractorSpecialtyController.text,
-          locationScope: _locationScope,
+          organizationId: organizationId,
         );
 
         if (!mounted) return;
@@ -517,25 +560,55 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _categoryController,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  hintText: 'Plumbing, Electrical, Painting',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                onChanged: (_) {
-                  setState(() {});
-                },
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Category is required';
-                  }
-                  return null;
+              Builder(
+                builder: (context) {
+                  final currentCategory = _categoryController.text.trim();
+                  final categoryOptions = <String>{
+                    'General',
+                    'Plumbing',
+                    'Electrical',
+                    'Painting',
+                    'Carpentry',
+                    'Masonry',
+                    if (currentCategory.isNotEmpty) currentCategory,
+                  }.toList();
+
+                  return DropdownButtonFormField<String>(
+                    initialValue: currentCategory.isEmpty ? 'General' : currentCategory,
+                    decoration: InputDecoration(
+                      labelText: 'Category',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
+                    ),
+                    items: categoryOptions.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(
+                          category,
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        _categoryController.text = value;
+                        _selectedContractorId = null;
+                      });
+                      _loadContractorsForCategory(value);
+                    },
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Category is required';
+                      }
+                      return null;
+                    },
+                  );
                 },
               ),
               const SizedBox(height: 16),
@@ -580,7 +653,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
               const SizedBox(height: 16),
               DropdownButtonFormField<String?>(
                 initialValue: _selectedContractorId != null &&
-                        _uniqueFilteredContractors.any((c) => c.id == _selectedContractorId)
+                        _sortedMatchingContractors.any((c) => c.id == _selectedContractorId)
                     ? _selectedContractorId
                     : null,
                 decoration: InputDecoration(
@@ -598,13 +671,51 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       style: TextStyle(fontFamily: AppTheme.appFontFamily),
                     ),
                   ),
-                  ..._uniqueFilteredContractors.map((contractor) {
+                  ..._sortedMatchingContractors.map((contractor) {
+                    final isRecommended = _recommendedContractor?.id == contractor.id;
+                    final activeTickets = _activeTicketCounts[contractor.id] ?? 0;
                     return DropdownMenuItem<String?>(
                       value: contractor.id,
-                      child: Text(
-                        contractor.displayLabel,
-                        style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                        overflow: TextOverflow.ellipsis,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              contractor.displayLabel,
+                              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (isRecommended)
+                            Container(
+                              margin: const EdgeInsets.only(left: 8),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryColor.withOpacity(0.16),
+                                borderRadius: BorderRadius.circular(999),
+                                border: Border.all(color: AppTheme.primaryColor),
+                              ),
+                              child: const Text(
+                                'Recommended',
+                                style: TextStyle(
+                                  fontFamily: AppTheme.appFontFamily,
+                                  fontSize: 11,
+                                  color: AppTheme.primaryColor,
+                                ),
+                              ),
+                            )
+                          else
+                            Padding(
+                              padding: const EdgeInsets.only(left: 8),
+                              child: Text(
+                                'Score ${contractor.reliabilityLabel} • $activeTickets active',
+                                style: const TextStyle(
+                                  fontFamily: AppTheme.appFontFamily,
+                                  fontSize: 11,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     );
                   }),
@@ -633,9 +744,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
                   child: Text(
-                    _locationScope == 'unscoped'
-                        ? 'Contractors: location not set, showing unscoped list.'
-                        : 'Contractors scoped to this location.',
+                    _sortedMatchingContractors.isEmpty
+                        ? 'No contractors match ${_categoryController.text.trim()} yet.'
+                        : 'Recommended contractor is highlighted by score and open tickets.',
                     style: const TextStyle(
                       fontFamily: AppTheme.appFontFamily,
                       color: Colors.white70,
@@ -643,6 +754,23 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     ),
                   ),
                 ),
+                if (!_isContractorsLoading && _sortedMatchingContractors.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => _openContractorRegistry(
+                          specialty: _categoryController.text.trim(),
+                        ),
+                        icon: const Icon(LucideIcons.userPlus),
+                        label: Text(
+                          'Add ${_categoryController.text.trim()} Contractor',
+                          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                        ),
+                      ),
+                    ),
+                  ),
               const SizedBox(height: 16),
               Row(
                 children: [

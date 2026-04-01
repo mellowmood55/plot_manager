@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'supabase_service.dart';
 import '../models/contractor.dart';
 import '../models/maintenance_request.dart';
 
@@ -40,7 +41,7 @@ class MaintenanceService {
     try {
       final response = await _supabase
         .from('maintenance_requests')
-        .select('*, contractors(id, name, phone, specialty)')
+        .select('*, contractors(id, name, phone, specialty, organization_id, reliability_score)')
         .inFilter('status', ['open', 'in_progress'])
         .order('created_at', ascending: false);
 
@@ -57,7 +58,7 @@ class MaintenanceService {
     try {
       final response = await _supabase
         .from('maintenance_requests')
-        .select('*, contractors(id, name, phone, specialty)')
+        .select('*, contractors(id, name, phone, specialty, organization_id, reliability_score)')
         .eq('unit_id', unitId)
         .order('created_at', ascending: false);
 
@@ -98,7 +99,7 @@ class MaintenanceService {
           'image_url': normalizedImageUrl,
           'contractor_id': contractorId,
         })
-        .select('*, contractors(id, name, phone, specialty)')
+        .select('*, contractors(id, name, phone, specialty, organization_id, reliability_score)')
         .single();
 
       return MaintenanceRequest.fromMap(response);
@@ -137,17 +138,44 @@ class MaintenanceService {
     }
   }
 
-  Future<List<Contractor>> getContractors({String? locationScope}) async {
+  Future<List<Contractor>> getContractors({
+    String? organizationId,
+    String? specialty,
+    String? locationScope,
+  }) async {
+    return getContractorsByOrganization(
+      organizationId: organizationId ?? await SupabaseService.instance.getCurrentOrganizationId(),
+      specialty: specialty ?? locationScope,
+    );
+  }
+
+  Future<List<Contractor>> getContractorsByOrganization({
+    String? organizationId,
+    String? specialty,
+  }) async {
     try {
-      final scopedLocation = normalizeLocationScope(locationScope);
+      final resolvedOrganizationId = organizationId ?? await SupabaseService.instance.getCurrentOrganizationId();
+      if (resolvedOrganizationId == null || resolvedOrganizationId.isEmpty) {
+        return [];
+      }
+
+      final normalizedSpecialty = specialty?.trim();
+      final specialtyFilter = normalizedSpecialty == null ||
+              normalizedSpecialty.isEmpty ||
+              normalizedSpecialty.toLowerCase() == 'general'
+          ? null
+          : normalizedSpecialty;
+
       final query = _supabase
           .from('contractors')
-          .select();
+          .select('id, name, phone, specialty, organization_id, reliability_score, location_scope')
+          .eq('organization_id', resolvedOrganizationId);
 
-      final response = scopedLocation == 'unscoped'
-          ? await query.order('name', ascending: true)
+      final response = specialtyFilter == null
+          ? await query.order('reliability_score', ascending: false).order('name', ascending: true)
           : await query
-              .eq('location_scope', scopedLocation)
+              .ilike('specialty', '%$specialtyFilter%')
+              .order('reliability_score', ascending: false)
               .order('name', ascending: true);
 
       return (response as List)
@@ -155,6 +183,139 @@ class MaintenanceService {
           .toList();
     } catch (e) {
       throw Exception('Failed to fetch contractors: $e');
+    }
+  }
+
+  Future<Map<String, int>> getActiveTicketCountsByContractor({String? organizationId}) async {
+    try {
+      final resolvedOrganizationId = organizationId ?? await SupabaseService.instance.getCurrentOrganizationId();
+      if (resolvedOrganizationId == null || resolvedOrganizationId.isEmpty) {
+        return {};
+      }
+
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('contractor_id, status')
+          .inFilter('status', ['open', 'in_progress']);
+
+      final counts = <String, int>{};
+      for (final row in response as List) {
+        final contractorId = row['contractor_id']?.toString();
+        if (contractorId == null || contractorId.isEmpty) {
+          continue;
+        }
+
+        counts[contractorId] = (counts[contractorId] ?? 0) + 1;
+      }
+
+      return counts;
+    } catch (e) {
+      throw Exception('Failed to fetch contractor ticket counts: $e');
+    }
+  }
+
+  Future<List<Contractor>> getSmartContractorsForCategory(
+    String category, {
+    String? organizationId,
+  }) async {
+    try {
+      final resolvedOrganizationId = organizationId ?? await SupabaseService.instance.getCurrentOrganizationId();
+      if (resolvedOrganizationId == null || resolvedOrganizationId.isEmpty) {
+        return [];
+      }
+
+      final contractors = await getContractorsByOrganization(
+        organizationId: resolvedOrganizationId,
+        specialty: category,
+      );
+      final activeTicketCounts = await getActiveTicketCountsByContractor(
+        organizationId: resolvedOrganizationId,
+      );
+
+      contractors.sort((left, right) {
+        final leftActive = activeTicketCounts[left.id] ?? 0;
+        final rightActive = activeTicketCounts[right.id] ?? 0;
+
+        final leftRecommended = leftActive == 0;
+        final rightRecommended = rightActive == 0;
+        if (leftRecommended != rightRecommended) {
+          return leftRecommended ? -1 : 1;
+        }
+
+        final scoreCompare = right.reliabilityScore.compareTo(left.reliabilityScore);
+        if (scoreCompare != 0) {
+          return scoreCompare;
+        }
+
+        final activeCompare = leftActive.compareTo(rightActive);
+        if (activeCompare != 0) {
+          return activeCompare;
+        }
+
+        return left.name.toLowerCase().compareTo(right.name.toLowerCase());
+      });
+
+      return contractors;
+    } catch (e) {
+      throw Exception('Failed to fetch smart contractor suggestions: $e');
+    }
+  }
+
+  Future<Contractor?> saveContractor({
+    required String name,
+    required String phone,
+    required String specialty,
+    required String organizationId,
+    double reliabilityScore = 0,
+  }) async {
+    final normalizedName = name.trim();
+    final normalizedPhone = phone.trim();
+    final normalizedSpecialty = specialty.trim().isEmpty ? 'General Handyman' : specialty.trim();
+    final normalizedScore = reliabilityScore.clamp(0, 5).toDouble();
+
+    if (normalizedName.isEmpty || normalizedPhone.isEmpty) {
+      return null;
+    }
+
+    try {
+      final existing = await _supabase
+          .from('contractors')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('phone', normalizedPhone)
+          .maybeSingle();
+
+      if (existing != null) {
+        final contractorId = existing['id'] as String;
+        await _supabase
+            .from('contractors')
+            .update({
+              'name': normalizedName,
+              'phone': normalizedPhone,
+              'specialty': normalizedSpecialty,
+              'organization_id': organizationId,
+              'reliability_score': normalizedScore,
+            })
+            .eq('id', contractorId);
+
+        return await getContractorById(contractorId);
+      }
+
+      final created = await _supabase
+          .from('contractors')
+          .insert({
+            'name': normalizedName,
+            'phone': normalizedPhone,
+            'specialty': normalizedSpecialty,
+            'organization_id': organizationId,
+            'reliability_score': normalizedScore,
+          })
+          .select('id, name, phone, specialty, organization_id, reliability_score, location_scope')
+          .single();
+
+      return Contractor.fromMap(created);
+    } catch (e) {
+      throw Exception('Failed to save contractor: $e');
     }
   }
 
@@ -317,70 +478,25 @@ class MaintenanceService {
     required String name,
     required String phone,
     required String specialty,
-    required String locationScope,
+    String? organizationId,
+    String? locationScope,
+    double reliabilityScore = 0,
   }) async {
-    final normalizedName = name.trim();
-    final normalizedPhone = phone.trim();
-    final normalizedSpecialty = specialty.trim().isEmpty ? 'General Handyman' : specialty.trim();
-    final normalizedLocationScope = normalizeLocationScope(locationScope);
-
-    if (normalizedName.isEmpty || normalizedPhone.isEmpty) {
-      return null;
-    }
-
     try {
-      final existing = await _supabase
-          .from('contractors')
-          .select('id, specialty, name')
-          .eq('phone', normalizedPhone)
-          .eq('location_scope', normalizedLocationScope)
-          .maybeSingle();
-
-      if (existing != null) {
-        final existingId = existing['id'] as String;
-        final currentSpecialty = (existing['specialty'] as String?) ?? '';
-
-        final currentRoles = currentSpecialty
-            .split(RegExp(r'[,/;|]'))
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toSet();
-
-        final newRoles = normalizedSpecialty
-            .split(RegExp(r'[,/;|]'))
-            .map((e) => e.trim())
-            .where((e) => e.isNotEmpty)
-            .toSet();
-
-        final mergedRoles = {...currentRoles, ...newRoles};
-        final mergedSpecialty = mergedRoles.join(', ');
-
-        final existingName = (existing['name'] as String?)?.trim() ?? '';
-
-        await _supabase
-            .from('contractors')
-            .update({
-              'name': existingName.isEmpty ? normalizedName : existingName,
-              'specialty': mergedSpecialty.isEmpty ? normalizedSpecialty : mergedSpecialty,
-              'location_scope': normalizedLocationScope,
-            })
-            .eq('id', existingId);
-
-        return existingId;
+      final resolvedOrganizationId = organizationId ?? await SupabaseService.instance.getCurrentOrganizationId();
+      if (resolvedOrganizationId == null || resolvedOrganizationId.isEmpty) {
+        return null;
       }
 
-      final created = await _supabase
-          .from('contractors')
-          .insert({
-            'name': normalizedName,
-            'phone': normalizedPhone,
-            'specialty': normalizedSpecialty,
-            'location_scope': normalizedLocationScope,
-          })
-          .select('id')
-          .single();
+      final contractor = await saveContractor(
+        name: name,
+        phone: phone,
+        specialty: specialty,
+        organizationId: resolvedOrganizationId,
+        reliabilityScore: reliabilityScore,
+      );
 
-      return created['id'] as String;
+      return contractor?.id;
     } catch (e) {
       throw Exception('Failed to create contractor: $e');
     }

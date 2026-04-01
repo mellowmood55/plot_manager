@@ -6,6 +6,7 @@ import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/signup_screen.dart';
 import 'features/home/dashboard_screen.dart';
+import 'features/maintenance/screens/contractor_registry_screen.dart';
 import 'features/reports/screens/finance_dashboard_screen.dart';
 
 Future<void> main() async {
@@ -47,6 +48,7 @@ class MyApp extends ConsumerWidget {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/contractors': (context) => const ContractorRegistryScreen(),
         '/finance': (context) => const FinanceDashboardScreen(),
       },
     );
