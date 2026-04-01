@@ -47,16 +47,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   List<Contractor> _contractors = [];
   Map<String, int> _activeTicketCounts = {};
   String? _selectedTemplateLabel;
-  Set<String> _selectedContractorRoles = {};
-
-  static const List<String> _roleOptions = [
-    'Plumbing',
-    'Electrical',
-    'Painting',
-    'Carpentry',
-    'Masonry',
-    'General Handyman',
-  ];
 
   static const List<_MaintenanceTemplate> _templates = [
     _MaintenanceTemplate(
@@ -119,8 +109,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _selectedContractorId = existing.contractorId;
     _contractorNameController.text = existing.contractor?.name ?? '';
     _contractorPhoneController.text = existing.contractor?.phone ?? '';
-    _contractorSpecialtyController.text = existing.contractor?.specialty ?? _categoryController.text;
-    _selectedContractorRoles = _parseRoles(_contractorSpecialtyController.text);
+    _contractorSpecialtyController.text = MaintenanceService.instance
+      .normalizeContractorSpecialty(existing.contractor?.specialty ?? _categoryController.text);
   }
 
   @override
@@ -222,8 +212,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           if (selected.isNotEmpty) {
             _contractorNameController.text = selected.first.name;
             _contractorPhoneController.text = selected.first.phone;
-            _contractorSpecialtyController.text = selected.first.specialty;
-            _selectedContractorRoles = _parseRoles(selected.first.specialty);
+            _contractorSpecialtyController.text =
+                MaintenanceService.instance.normalizeContractorSpecialty(selected.first.specialty);
           } else {
             _selectedContractorId = null;
           }
@@ -259,28 +249,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedContractorId = null;
       if (_contractorSpecialtyController.text.trim().isEmpty ||
           _contractorSpecialtyController.text == 'General Handyman') {
-        _contractorSpecialtyController.text = template.category;
-        _selectedContractorRoles = _parseRoles(template.category);
+        _contractorSpecialtyController.text =
+            MaintenanceService.instance.normalizeContractorSpecialty(template.category);
       }
     });
 
     _loadContractorsForCategory(template.category);
-  }
-
-  Set<String> _parseRoles(String raw) {
-    return raw
-        .split(RegExp(r'[,/;|]'))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet();
-  }
-
-  void _syncSpecialtyFromRoles() {
-    if (_selectedContractorRoles.isEmpty) {
-      _contractorSpecialtyController.text = 'General Handyman';
-      return;
-    }
-    _contractorSpecialtyController.text = _selectedContractorRoles.join(', ');
   }
 
   Future<void> _pickContractorFromContacts() async {
@@ -317,10 +291,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         _contractorNameController.text = contact.displayName;
         _contractorPhoneController.text = phone;
         if (_contractorSpecialtyController.text.trim().isEmpty) {
-          _contractorSpecialtyController.text = _categoryController.text.trim().isEmpty
-              ? 'General Handyman'
-              : _categoryController.text.trim();
-          _selectedContractorRoles = _parseRoles(_contractorSpecialtyController.text);
+          _contractorSpecialtyController.text = MaintenanceService.instance
+              .normalizeContractorSpecialty(_categoryController.text.trim());
         }
       });
     } catch (error) {
@@ -729,8 +701,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                           if (selected.isNotEmpty) {
                             _contractorNameController.text = selected.first.name;
                             _contractorPhoneController.text = selected.first.phone;
-                            _contractorSpecialtyController.text = selected.first.specialty;
-                            _selectedContractorRoles = _parseRoles(selected.first.specialty);
+                            _contractorSpecialtyController.text = MaintenanceService.instance
+                                .normalizeContractorSpecialty(selected.first.specialty);
                           }
                         });
                       },
@@ -821,55 +793,48 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 style: const TextStyle(fontFamily: AppTheme.appFontFamily),
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _contractorSpecialtyController,
-                decoration: InputDecoration(
-                  labelText: 'Contractor Specialty',
-                  hintText: 'Plumber, Electrician, Painter',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  contentPadding: const EdgeInsets.all(16),
-                ),
-                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedContractorRoles = _parseRoles(value);
-                  });
-                },
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Contractor Roles (supports multiple)',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontFamily: AppTheme.appFontFamily,
-                      color: Colors.white70,
+              Builder(
+                builder: (context) {
+                  final currentSpecialty = MaintenanceService.instance
+                      .normalizeContractorSpecialty(_contractorSpecialtyController.text);
+                  final specialtyOptions = <String>{
+                    ...MaintenanceService.contractorSpecialties,
+                    if (currentSpecialty.isNotEmpty) currentSpecialty,
+                  }.toList();
+
+                  return DropdownButtonFormField<String>(
+                    initialValue: specialtyOptions.contains(currentSpecialty)
+                        ? currentSpecialty
+                        : 'General Handyman',
+                    decoration: InputDecoration(
+                      labelText: 'Contractor Specialty',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      contentPadding: const EdgeInsets.all(16),
                     ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _roleOptions.map((role) {
-                  final selected = _selectedContractorRoles.contains(role);
-                  return FilterChip(
-                    selected: selected,
-                    label: Text(
-                      role,
-                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                    ),
-                    onSelected: (isSelected) {
+                    items: specialtyOptions
+                        .map(
+                          (specialty) => DropdownMenuItem<String>(
+                            value: specialty,
+                            child: Text(
+                              specialty,
+                              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
                       setState(() {
-                        if (isSelected) {
-                          _selectedContractorRoles.add(role);
-                        } else {
-                          _selectedContractorRoles.remove(role);
-                        }
-                        _syncSpecialtyFromRoles();
+                        _contractorSpecialtyController.text =
+                            MaintenanceService.instance.normalizeContractorSpecialty(value);
                       });
                     },
                   );
-                }).toList(),
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(

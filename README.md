@@ -20,8 +20,8 @@ Plot Manager is a Flutter app for managing rental plots, units, tenants, and fin
 1. Install Flutter SDK.
 2. Run `flutter pub get`.
 3. Configure Supabase credentials in `lib/core/supabase_config.dart`.
-4. Run SQL migrations from the repository root:
-   - `unit_configurations_setup.sql`
-   - `unit_number_canonicalization.sql`
-   - `payments_phase4.sql`
+4. Run SQL migrations from the `sql/` folder:
+   - `sql/unit_configurations_setup.sql`
+   - `sql/unit_number_canonicalization.sql`
+   - `sql/payments_phase4.sql`
 5. Start the app with `flutter run`.
