@@ -1,7 +1,7 @@
-Maintenance module refinement: contractors + resolution metadata
-Run in Supabase SQL Editor as project admin.
+-- Maintenance module refinement: contractors + resolution metadata
+-- Run in Supabase SQL Editor as project admin.
 
-1) Contractors table
+-- 1) Contractors table
 create table if not exists public.contractors (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id) on delete cascade,
@@ -126,7 +126,7 @@ alter table public.maintenance_requests
   add column if not exists after_image_url text,
   add column if not exists contractor_id uuid references public.contractors(id) on delete set null;
 
-actual_cost may already exist from earlier schema; keep this idempotent.
+-- actual_cost may already exist from earlier schema; keep this idempotent.
 alter table public.maintenance_requests
   add column if not exists actual_cost numeric(10,2);
 
