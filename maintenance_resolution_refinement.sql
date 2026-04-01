@@ -119,7 +119,7 @@ using (
   or created_by = auth.uid()
 );
 
-2) maintenance_requests refinements
+-- 2) maintenance_requests refinements
 alter table public.maintenance_requests
   add column if not exists category text default 'General',
   add column if not exists resolved_at timestamptz,
