@@ -12,6 +12,7 @@ import '../../../models/contractor.dart';
 import '../../../models/maintenance_request.dart';
 import '../../../services/maintenance_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../widgets/specialty_dropdown_field.dart';
 import 'contractor_registry_screen.dart';
 
 class AddMaintenanceScreen extends StatefulWidget {
@@ -109,8 +110,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _selectedContractorId = existing.contractorId;
     _contractorNameController.text = existing.contractor?.name ?? '';
     _contractorPhoneController.text = existing.contractor?.phone ?? '';
-    _contractorSpecialtyController.text = MaintenanceService.instance
-      .normalizeContractorSpecialty(existing.contractor?.specialty ?? _categoryController.text);
+    _contractorSpecialtyController.text = existing.contractor?.specialty ?? _categoryController.text;
   }
 
   @override
@@ -212,8 +212,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
           if (selected.isNotEmpty) {
             _contractorNameController.text = selected.first.name;
             _contractorPhoneController.text = selected.first.phone;
-            _contractorSpecialtyController.text =
-                MaintenanceService.instance.normalizeContractorSpecialty(selected.first.specialty);
+            _contractorSpecialtyController.text = selected.first.specialty;
           } else {
             _selectedContractorId = null;
           }
@@ -249,8 +248,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _selectedContractorId = null;
       if (_contractorSpecialtyController.text.trim().isEmpty ||
           _contractorSpecialtyController.text == 'General Handyman') {
-        _contractorSpecialtyController.text =
-            MaintenanceService.instance.normalizeContractorSpecialty(template.category);
+        _contractorSpecialtyController.text = template.category;
       }
     });
 
@@ -291,8 +289,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
         _contractorNameController.text = contact.displayName;
         _contractorPhoneController.text = phone;
         if (_contractorSpecialtyController.text.trim().isEmpty) {
-          _contractorSpecialtyController.text = MaintenanceService.instance
-              .normalizeContractorSpecialty(_categoryController.text.trim());
+          _contractorSpecialtyController.text = _categoryController.text.trim().isEmpty
+              ? 'General Handyman'
+              : _categoryController.text.trim();
         }
       });
     } catch (error) {
@@ -701,8 +700,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                           if (selected.isNotEmpty) {
                             _contractorNameController.text = selected.first.name;
                             _contractorPhoneController.text = selected.first.phone;
-                            _contractorSpecialtyController.text = MaintenanceService.instance
-                                .normalizeContractorSpecialty(selected.first.specialty);
+                            _contractorSpecialtyController.text = selected.first.specialty;
                           }
                         });
                       },
@@ -793,47 +791,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 style: const TextStyle(fontFamily: AppTheme.appFontFamily),
               ),
               const SizedBox(height: 16),
-              Builder(
-                builder: (context) {
-                  final currentSpecialty = MaintenanceService.instance
-                      .normalizeContractorSpecialty(_contractorSpecialtyController.text);
-                  final specialtyOptions = <String>{
-                    ...MaintenanceService.contractorSpecialties,
-                    if (currentSpecialty.isNotEmpty) currentSpecialty,
-                  }.toList();
-
-                  return DropdownButtonFormField<String>(
-                    initialValue: specialtyOptions.contains(currentSpecialty)
-                        ? currentSpecialty
-                        : 'General Handyman',
-                    decoration: InputDecoration(
-                      labelText: 'Contractor Specialty',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      contentPadding: const EdgeInsets.all(16),
-                    ),
-                    items: specialtyOptions
-                        .map(
-                          (specialty) => DropdownMenuItem<String>(
-                            value: specialty,
-                            child: Text(
-                              specialty,
-                              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) {
-                        return;
-                      }
-                      setState(() {
-                        _contractorSpecialtyController.text =
-                            MaintenanceService.instance.normalizeContractorSpecialty(value);
-                      });
-                    },
-                  );
+              SpecialtyDropdownField(
+                controller: _contractorSpecialtyController,
+                onChanged: (_) {
+                  setState(() {});
                 },
               ),
               const SizedBox(height: 16),

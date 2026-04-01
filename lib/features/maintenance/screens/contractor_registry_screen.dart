@@ -7,6 +7,7 @@ import '../../../core/theme.dart';
 import '../../../models/contractor.dart';
 import '../../../services/maintenance_service.dart';
 import '../../../services/supabase_service.dart';
+import '../../../widgets/specialty_dropdown_field.dart';
 
 class ContractorRegistryScreen extends StatefulWidget {
   const ContractorRegistryScreen({
@@ -44,7 +45,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
     super.initState();
     final initialSpecialty = widget.initialSpecialty?.trim();
     if (initialSpecialty != null && initialSpecialty.isNotEmpty) {
-      _selectedSpecialty = MaintenanceService.instance.normalizeContractorSpecialty(initialSpecialty);
+      _selectedSpecialty = initialSpecialty;
     }
     _loadRegistry();
   }
@@ -234,7 +235,9 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
   Future<void> _openAddContractorSheet({String? specialty}) async {
     final nameController = TextEditingController();
     final phoneController = TextEditingController();
-    String selectedSpecialty = MaintenanceService.instance.normalizeContractorSpecialty(specialty);
+    final specialtyController = TextEditingController(
+      text: (specialty == null || specialty.trim().isEmpty) ? 'General Handyman' : specialty.trim(),
+    );
     final reliabilityController = TextEditingController(text: '0.0');
     final formKey = GlobalKey<FormState>();
 
@@ -345,30 +348,10 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedSpecialty,
-                        style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                        decoration: const InputDecoration(
-                          labelText: 'Specialty',
-                        ),
-                        items: MaintenanceService.contractorSpecialties
-                            .map(
-                              (specialtyOption) => DropdownMenuItem<String>(
-                                value: specialtyOption,
-                                child: Text(
-                                  specialtyOption,
-                                  style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-                                ),
-                              ),
-                            )
-                            .toList(),
+                      SpecialtyDropdownField(
+                        controller: specialtyController,
                         onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setModalState(() {
-                            selectedSpecialty = value;
-                          });
+                          setModalState(() {});
                         },
                       ),
                       const SizedBox(height: 16),
@@ -431,7 +414,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                                   final saved = await MaintenanceService.instance.saveContractor(
                                     name: nameController.text,
                                     phone: phoneController.text,
-                                    specialty: selectedSpecialty,
+                                    specialty: specialtyController.text,
                                     organizationId: organizationId,
                                     reliabilityScore: parsedScore,
                                   );

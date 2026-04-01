@@ -5,7 +5,7 @@ This implementation adds a global unit type configuration system with auto-prici
 
 ## What Was Implemented
 
-### 1. **SQL Setup** (`sql/unit_configurations_setup.sql`)
+### 1. **SQL Setup** (`unit_configurations_setup.sql`)
 
 Created a new table structure:
 - **unit_configurations table**: Stores organization-specific unit types and default rents
@@ -111,7 +111,7 @@ When user selects a unit type from the dropdown:
 
 ## Database Setup Required
 
-Run the SQL script `sql/unit_configurations_setup.sql` against your Supabase database to:
+Run the SQL script `unit_configurations_setup.sql` against your Supabase database to:
 1. Create the unit_configurations table
 2. Add unit_type column to units table
 3. Enable RLS and add security policies
@@ -135,7 +135,7 @@ Run the SQL script `sql/unit_configurations_setup.sql` against your Supabase dat
 **Created:**
 - `lib/models/unit_configuration.dart` - UnitConfiguration model
 - `lib/features/settings/settings_screen.dart` - Settings UI
-- `sql/unit_configurations_setup.sql` - Database schema
+- `unit_configurations_setup.sql` - Database schema
 
 **Modified:**
 - `lib/models/unit.dart` - Added unitType field

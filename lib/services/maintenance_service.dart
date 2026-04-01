@@ -11,42 +11,6 @@ class MaintenanceService {
 
   final _supabase = Supabase.instance.client;
   static const String _bucketName = 'maintenance_attachments';
-  static const List<String> contractorSpecialties = [
-    'General Handyman',
-    'Plumbing',
-    'Electrical',
-    'Painting',
-    'Carpentry',
-    'Masonry',
-  ];
-
-  String normalizeContractorSpecialty(String? raw) {
-    final value = (raw ?? '').trim().toLowerCase();
-    if (value.isEmpty) {
-      return 'General Handyman';
-    }
-
-    if (value.contains('plumb') || value.contains('pipe')) {
-      return 'Plumbing';
-    }
-    if (value.contains('elect') || value.contains('wire') || value.contains('socket')) {
-      return 'Electrical';
-    }
-    if (value.contains('paint')) {
-      return 'Painting';
-    }
-    if (value.contains('carp') || value.contains('wood')) {
-      return 'Carpentry';
-    }
-    if (value.contains('mason') || value.contains('brick') || value.contains('wall')) {
-      return 'Masonry';
-    }
-
-    return contractorSpecialties.firstWhere(
-      (specialty) => specialty.toLowerCase() == value,
-      orElse: () => 'General Handyman',
-    );
-  }
 
   String normalizeLocationScope(String? location) {
     final raw = (location ?? '').trim().toLowerCase();
@@ -195,7 +159,7 @@ class MaintenanceService {
         return [];
       }
 
-      final normalizedSpecialty = specialty == null ? null : normalizeContractorSpecialty(specialty);
+      final normalizedSpecialty = specialty?.trim();
       final specialtyFilter = normalizedSpecialty == null ||
               normalizedSpecialty.isEmpty ||
               normalizedSpecialty.toLowerCase() == 'general'
@@ -306,7 +270,7 @@ class MaintenanceService {
   }) async {
     final normalizedName = name.trim();
     final normalizedPhone = phone.trim();
-    final normalizedSpecialty = normalizeContractorSpecialty(specialty);
+    final normalizedSpecialty = specialty.trim().isEmpty ? 'General Handyman' : specialty.trim();
     final normalizedScore = reliabilityScore.clamp(0, 5).toDouble();
 
     if (normalizedName.isEmpty || normalizedPhone.isEmpty) {
@@ -527,7 +491,7 @@ class MaintenanceService {
       final contractor = await saveContractor(
         name: name,
         phone: phone,
-        specialty: normalizeContractorSpecialty(specialty),
+        specialty: specialty,
         organizationId: resolvedOrganizationId,
         reliabilityScore: reliabilityScore,
       );
