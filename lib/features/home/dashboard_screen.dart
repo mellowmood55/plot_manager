@@ -117,86 +117,122 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   }
 
   Widget _buildPropertiesTab() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Stack(
       children: [
-        Container(
-          padding: const EdgeInsets.all(24.0),
-          color: AppTheme.surfaceColor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Center(
-                child: Text(
-                  'Welcome to ${_organizationName ?? 'Your Organization'}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        fontFamily: AppTheme.appFontFamily,
-                        color: AppTheme.primaryColor,
-                      ),
-                ),
-              ),
-              const SizedBox(height: 4.0),
-              Center(
-                child: Text(
-                  '$_displayName',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontFamily: AppTheme.appFontFamily,
-                      ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: _properties.isEmpty
-              ? Center(
-                  child: Text(
-                    'No plots yet. Tap "Add New Plot" to start.',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontFamily: AppTheme.appFontFamily),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _properties.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final property = _properties[index];
-
-                    return Card(
-                      child: ListTile(
-                        title: Text(
-                          property.name,
-                          style: const TextStyle(
-                            fontFamily: AppTheme.appFontFamily,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24.0),
+              color: AppTheme.surfaceColor,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Center(
+                    child: Text(
+                      'Welcome to ${_organizationName ?? 'Your Organization'}',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                             fontWeight: FontWeight.bold,
+                            fontFamily: AppTheme.appFontFamily,
+                            color: AppTheme.primaryColor,
                           ),
-                        ),
-                        subtitle: Text(
-                          property.location ?? 'No location set',
-                          style: const TextStyle(
+                    ),
+                  ),
+                  const SizedBox(height: 4.0),
+                  Center(
+                    child: Text(
+                      '$_displayName',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontFamily: AppTheme.appFontFamily,
                           ),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () async {
-                          await Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => PropertyDetailScreen(property: property),
-                            ),
-                          );
-                          await _loadDashboardData();
-                        },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _properties.isEmpty
+                  ? Center(
+                      child: Text(
+                        'No plots yet. Tap "Add New Plot" to start.',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontFamily: AppTheme.appFontFamily),
                       ),
-                    );
-                  },
-                ),
+                    )
+                  : ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                      itemCount: _properties.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final property = _properties[index];
+
+                        return Card(
+                          child: ListTile(
+                            title: Text(
+                              property.name,
+                              style: const TextStyle(
+                                fontFamily: AppTheme.appFontFamily,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            subtitle: Text(
+                              property.location ?? 'No location set',
+                              style: const TextStyle(
+                                fontFamily: AppTheme.appFontFamily,
+                              ),
+                            ),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => PropertyDetailScreen(property: property),
+                                ),
+                              );
+                              await _loadDashboardData();
+                            },
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
+        if (_organizationId != null)
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: SafeArea(
+              top: false,
+              left: false,
+              right: false,
+              child: FloatingActionButton.extended(
+                backgroundColor: AppTheme.primaryColor,
+                onPressed: () async {
+                  final created = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                      builder: (_) => AddPropertyScreen(
+                        organizationId: _organizationId!,
+                      ),
+                    ),
+                  );
+
+                  if (!mounted) return;
+                  if (created == true) {
+                    await _loadDashboardData();
+                  }
+                },
+                icon: const Icon(Icons.add),
+                label: const Text(
+                  'Add New Plot',
+                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -253,30 +289,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
         ],
       ),
-        floatingActionButton: _organizationId == null || _tabController.index == 1
-          ? null
-          : FloatingActionButton.extended(
-              backgroundColor: AppTheme.primaryColor,
-              onPressed: () async {
-                final created = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute(
-                    builder: (_) => AddPropertyScreen(
-                      organizationId: _organizationId!,
-                    ),
-                  ),
-                );
-
-                if (!mounted) return;
-                if (created == true) {
-                  await _loadDashboardData();
-                }
-              },
-              icon: const Icon(Icons.add),
-              label: const Text(
-                'Add New Plot',
-                style: TextStyle(fontFamily: AppTheme.appFontFamily),
-              ),
-            ),
       body: _isLoading
           ? const Center(
               child: CircularProgressIndicator(),
