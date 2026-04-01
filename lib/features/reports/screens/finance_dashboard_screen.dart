@@ -745,12 +745,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Profit & Loss Dashboard',
-          style: TextStyle(fontFamily: _fontFamily),
-        ),
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

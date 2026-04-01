@@ -31,13 +31,20 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(_handleTabChanged);
     _loadDashboardData();
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _loadDashboardData() async {
@@ -111,28 +118,34 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   Widget _buildPropertiesTab() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Container(
           padding: const EdgeInsets.all(24.0),
           color: AppTheme.surfaceColor,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                'Welcome to ${_organizationName ?? 'Your Organization'}',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      fontFamily: AppTheme.appFontFamily,
-                      color: AppTheme.primaryColor,
-                    ),
+              Center(
+                child: Text(
+                  'Welcome to ${_organizationName ?? 'Your Organization'}',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontFamily: AppTheme.appFontFamily,
+                        color: AppTheme.primaryColor,
+                      ),
+                ),
               ),
               const SizedBox(height: 4.0),
-              Text(
-                '$_displayName',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      fontFamily: AppTheme.appFontFamily,
-                    ),
+              Center(
+                child: Text(
+                  '$_displayName',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontFamily: AppTheme.appFontFamily,
+                      ),
+                ),
               ),
             ],
           ),
@@ -240,7 +253,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
         ],
       ),
-      floatingActionButton: _organizationId == null
+        floatingActionButton: _organizationId == null || _tabController.index == 1
           ? null
           : FloatingActionButton.extended(
               backgroundColor: AppTheme.primaryColor,
