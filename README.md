@@ -25,3 +25,18 @@ Plot Manager is a Flutter app for managing rental plots, units, tenants, and fin
    - `unit_number_canonicalization.sql`
    - `payments_phase4.sql`
 5. Start the app with `flutter run`.
+
+## Running Automated Tests (CLI)
+
+Run all tests:
+
+```bash
+flutter test
+```
+
+Run Phase 10 test suites only:
+
+```bash
+flutter test test/finance_logic_test.dart
+flutter test test/maintenance_widget_test.dart
+```

@@ -79,6 +79,17 @@ class FinanceService {
 
   static final FinanceService instance = FinanceService._();
 
+  double calculateNetProfit({
+    required double totalRevenue,
+    required double totalExpenses,
+  }) {
+    return totalRevenue - totalExpenses;
+  }
+
+  double calculateMriTax(double taxableIncome) {
+    return taxableIncome * _mriTaxRate;
+  }
+
   Future<double> getMonthlyRevenue(DateTime month) async {
     final bounds = _monthBounds(month);
     return _sumRevenueInRange(bounds.startInclusive, bounds.endExclusive);
@@ -91,7 +102,7 @@ class FinanceService {
 
   Future<double> getMonthlyMriTax(DateTime month) async {
     final monthlyRevenue = await getMonthlyRevenue(month);
-    return monthlyRevenue * _mriTaxRate;
+    return calculateMriTax(monthlyRevenue);
   }
 
   Future<double> getCurrentMonthMriTax() async {

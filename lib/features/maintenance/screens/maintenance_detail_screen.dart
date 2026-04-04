@@ -13,20 +13,38 @@ import 'contractor_profile_screen.dart';
 import '../../../services/maintenance_service.dart';
 import '../../../services/supabase_service.dart';
 
+abstract class MaintenanceDetailDataSource {
+  Future<MaintenanceRequest> getMaintenanceRequestById(String requestId);
+}
+
+class _DefaultMaintenanceDetailDataSource implements MaintenanceDetailDataSource {
+  const _DefaultMaintenanceDetailDataSource();
+
+  @override
+  Future<MaintenanceRequest> getMaintenanceRequestById(String requestId) {
+    return MaintenanceService.instance.getMaintenanceRequestById(requestId);
+  }
+}
+
 class MaintenanceDetailScreen extends StatefulWidget {
   const MaintenanceDetailScreen({
     required this.requestId,
+    this.dataSource,
     super.key,
   });
 
   final String requestId;
+  final MaintenanceDetailDataSource? dataSource;
 
   @override
   State<MaintenanceDetailScreen> createState() => _MaintenanceDetailScreenState();
 }
 
 class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
+  static const MaintenanceDetailDataSource _defaultDataSource = _DefaultMaintenanceDetailDataSource();
   late Future<MaintenanceRequest> _requestFuture;
+
+  MaintenanceDetailDataSource get _dataSource => widget.dataSource ?? _defaultDataSource;
 
   @override
   void initState() {
@@ -35,7 +53,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
   }
 
   void _loadRequest() {
-    _requestFuture = MaintenanceService.instance.getMaintenanceRequestById(widget.requestId);
+    _requestFuture = _dataSource.getMaintenanceRequestById(widget.requestId);
   }
 
   Future<void> _callContractor(String phone) async {
