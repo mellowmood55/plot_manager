@@ -111,6 +111,21 @@ class SupabaseService {
     return rows.map<Unit>((row) => Unit.fromJson(row)).toList();
   }
 
+  Future<Unit?> fetchUnitById(String unitId) async {
+    final client = SupabaseConfig.getClient();
+    final row = await client
+        .from('units')
+        .select('id, property_id, unit_number, unit_type, status, rent_amount, tenant_id')
+        .eq('id', unitId)
+        .maybeSingle();
+
+    if (row == null) {
+      return null;
+    }
+
+    return Unit.fromJson(row);
+  }
+
   Future<void> createUnit({
     required String propertyId,
     required String unitNumber,

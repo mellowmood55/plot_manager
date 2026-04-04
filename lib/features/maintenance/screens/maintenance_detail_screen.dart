@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -10,6 +11,7 @@ import '../../../models/contractor.dart';
 import 'add_maintenance_screen.dart';
 import 'contractor_profile_screen.dart';
 import '../../../services/maintenance_service.dart';
+import '../../../services/supabase_service.dart';
 
 class MaintenanceDetailScreen extends StatefulWidget {
   const MaintenanceDetailScreen({
@@ -49,6 +51,105 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
         backgroundColor: Colors.redAccent,
         content: Text(
           'Could not launch dialer for contractor.',
+          style: TextStyle(fontFamily: AppTheme.appFontFamily),
+        ),
+      ),
+    );
+  }
+
+  String _normalizeWhatsAppPhone(String rawPhone) {
+    final digits = rawPhone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) {
+      return '';
+    }
+
+    // Default to Kenya-style normalization when user saves local numbers.
+    if (digits.startsWith('254') && digits.length >= 12) {
+      return digits;
+    }
+    if (digits.startsWith('0') && digits.length == 10) {
+      return '254${digits.substring(1)}';
+    }
+    if (digits.startsWith('7') && digits.length == 9) {
+      return '254$digits';
+    }
+
+    return digits;
+  }
+
+  Future<bool> _tryLaunchExternal(Uri uri) async {
+    if (!await canLaunchUrl(uri)) {
+      return false;
+    }
+    return launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _sendJobBrief(MaintenanceRequest request) async {
+    final contractor = request.contractor;
+    final phone = contractor?.phone.trim() ?? '';
+    if (contractor == null || phone.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            'No contractor is assigned to this ticket.',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final unit = await SupabaseService.instance.fetchUnitById(request.unitId);
+    if (!mounted) {
+      return;
+    }
+
+    final unitNumber = unit?.unitNumber.trim().isNotEmpty == true ? unit!.unitNumber : request.unitId;
+    final message =
+        'Plot Manager Brief:\n'
+        'Unit: $unitNumber\n'
+        'Issue: ${request.title}\n'
+        'Category: ${request.category}\n'
+        'Est. Cost: ${request.estimatedCost == null ? '-' : '\$${request.estimatedCost!.toStringAsFixed(2)}'}\n'
+        'Please confirm receipt.';
+
+    final whatsappPhone = _normalizeWhatsAppPhone(phone);
+    if (whatsappPhone.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.redAccent,
+          content: Text(
+            'The contractor phone number is invalid for WhatsApp.',
+            style: TextStyle(fontFamily: AppTheme.appFontFamily),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final encodedMessage = Uri.encodeComponent(message);
+    final whatsappUri = Uri.parse(
+      'whatsapp://send?phone=$whatsappPhone&text=$encodedMessage',
+    );
+    final waMeUri = Uri.parse('https://wa.me/$whatsappPhone?text=$encodedMessage');
+
+    if (await _tryLaunchExternal(whatsappUri)) {
+      return;
+    }
+
+    if (await _tryLaunchExternal(waMeUri)) {
+      return;
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        backgroundColor: Colors.redAccent,
+        content: Text(
+          'This number is not on WhatsApp, or WhatsApp is unavailable on this device.',
           style: TextStyle(fontFamily: AppTheme.appFontFamily),
         ),
       ),
@@ -344,14 +445,31 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
             future: _requestFuture,
             builder: (context, snapshot) {
               final req = snapshot.data;
-              if (req == null || req.status != MaintenanceStatus.open) {
+              if (req == null) {
                 return const SizedBox.shrink();
               }
 
-              return IconButton(
-                tooltip: 'Edit Ticket',
-                onPressed: () => _openEditScreen(req),
-                icon: const Icon(Icons.edit),
+              final actions = <Widget>[
+                if (req.contractor != null)
+                  IconButton(
+                    tooltip: 'Send Job Brief',
+                    onPressed: () => _sendJobBrief(req),
+                    icon: const Icon(
+                      FontAwesomeIcons.whatsapp,
+                      color: Color(0xFF25D366),
+                    ),
+                  ),
+                if (req.status == MaintenanceStatus.open)
+                  IconButton(
+                    tooltip: 'Edit Ticket',
+                    onPressed: () => _openEditScreen(req),
+                    icon: const Icon(Icons.edit),
+                  ),
+              ];
+
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                children: actions,
               );
             },
           ),

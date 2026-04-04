@@ -48,6 +48,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   List<Contractor> _contractors = [];
   Map<String, int> _activeTicketCounts = {};
   String? _selectedTemplateLabel;
+  String? _selectedContractorWorkloadName;
+  int? _selectedContractorWorkloadCount;
+  bool _isLoadingContractorWorkload = false;
 
   static const List<_MaintenanceTemplate> _templates = [
     _MaintenanceTemplate(
@@ -111,6 +114,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     _contractorNameController.text = existing.contractor?.name ?? '';
     _contractorPhoneController.text = existing.contractor?.phone ?? '';
     _contractorSpecialtyController.text = existing.contractor?.specialty ?? _categoryController.text;
+    if (existing.contractor != null) {
+      _selectedContractorWorkloadName = existing.contractor!.name;
+    }
   }
 
   @override
@@ -128,8 +134,6 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
   Future<void> _loadContractors() async {
     await _loadContractorsForCategory(_categoryController.text.trim());
   }
-
-  bool get _hasSelectedCategory => _categoryController.text.trim().isNotEmpty;
 
   List<Contractor> get _sortedMatchingContractors {
     final category = _categoryController.text.trim();
@@ -213,12 +217,20 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             _contractorNameController.text = selected.first.name;
             _contractorPhoneController.text = selected.first.phone;
             _contractorSpecialtyController.text = selected.first.specialty;
+            _selectedContractorWorkloadName = selected.first.name;
           } else {
             _selectedContractorId = null;
+            _selectedContractorWorkloadName = null;
+            _selectedContractorWorkloadCount = null;
           }
         }
         _isContractorsLoading = false;
       });
+
+      if (_selectedContractorId != null && _contractors.any((c) => c.id == _selectedContractorId)) {
+        final selected = _contractors.firstWhere((c) => c.id == _selectedContractorId);
+        await _loadSelectedContractorWorkload(selected);
+      }
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -239,6 +251,46 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
     }
   }
 
+  Future<void> _loadSelectedContractorWorkload(Contractor contractor) async {
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedContractorWorkloadName = contractor.name;
+      _selectedContractorWorkloadCount = null;
+      _isLoadingContractorWorkload = true;
+    });
+
+    try {
+      final jobCount = await MaintenanceService.instance.getContractorActiveJobCount(contractor.id);
+      if (!mounted || _selectedContractorId != contractor.id) {
+        return;
+      }
+
+      setState(() {
+        _selectedContractorWorkloadCount = jobCount;
+        _isLoadingContractorWorkload = false;
+      });
+    } catch (_) {
+      if (!mounted || _selectedContractorId != contractor.id) {
+        return;
+      }
+
+      setState(() {
+        _isLoadingContractorWorkload = false;
+      });
+    }
+  }
+
+  void _clearSelectedContractorWorkload() {
+    setState(() {
+      _selectedContractorWorkloadName = null;
+      _selectedContractorWorkloadCount = null;
+      _isLoadingContractorWorkload = false;
+    });
+  }
+
   void _applyTemplate(_MaintenanceTemplate template) {
     setState(() {
       _selectedTemplateLabel = template.label;
@@ -246,6 +298,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
       _categoryController.text = template.category;
       _estimatedCostController.text = template.estimatedCost.toStringAsFixed(2);
       _selectedContractorId = null;
+      _selectedContractorWorkloadName = null;
+      _selectedContractorWorkloadCount = null;
+      _isLoadingContractorWorkload = false;
       if (_contractorSpecialtyController.text.trim().isEmpty ||
           _contractorSpecialtyController.text == 'General Handyman') {
         _contractorSpecialtyController.text = template.category;
@@ -570,6 +625,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                       setState(() {
                         _categoryController.text = value;
                         _selectedContractorId = null;
+                        _selectedContractorWorkloadName = null;
+                        _selectedContractorWorkloadCount = null;
+                        _isLoadingContractorWorkload = false;
                       });
                       _loadContractorsForCategory(value);
                     },
@@ -696,6 +754,8 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     : (value) {
                         setState(() {
                           _selectedContractorId = value;
+                          _selectedContractorWorkloadName = null;
+                          _selectedContractorWorkloadCount = null;
                           final selected = _contractors.where((c) => c.id == value).toList();
                           if (selected.isNotEmpty) {
                             _contractorNameController.text = selected.first.name;
@@ -703,8 +763,44 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                             _contractorSpecialtyController.text = selected.first.specialty;
                           }
                         });
+
+                        if (value == null) {
+                          _clearSelectedContractorWorkload();
+                          return;
+                        }
+
+                        final selectedContractor = _contractors.where((c) => c.id == value).toList();
+                        if (selectedContractor.isNotEmpty) {
+                          _loadSelectedContractorWorkload(selectedContractor.first);
+                        }
                       },
               ),
+              if (_selectedContractorWorkloadCount != null && _selectedContractorWorkloadCount! >= 3)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFB74D),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: const Color(0xFFFF9800), width: 1.5),
+                    ),
+                    child: Text(
+                      'Warning: ${_selectedContractorWorkloadName ?? 'This contractor'} has $_selectedContractorWorkloadCount active jobs. This may cause delays.',
+                      style: const TextStyle(
+                        fontFamily: AppTheme.appFontFamily,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ),
+              if (_isLoadingContractorWorkload)
+                const Padding(
+                  padding: EdgeInsets.only(top: 8),
+                  child: LinearProgressIndicator(),
+                ),
               if (_isContractorsLoading)
                 const Padding(
                   padding: EdgeInsets.only(top: 8),

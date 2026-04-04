@@ -214,6 +214,20 @@ class MaintenanceService {
     }
   }
 
+  Future<int> getContractorActiveJobCount(String contractorId) async {
+    try {
+      final response = await _supabase
+          .from('maintenance_requests')
+          .select('id')
+          .eq('contractor_id', contractorId)
+          .inFilter('status', ['open', 'in_progress']);
+
+      return (response as List).length;
+    } catch (e) {
+      throw Exception('Failed to fetch contractor active job count: $e');
+    }
+  }
+
   Future<List<Contractor>> getSmartContractorsForCategory(
     String category, {
     String? organizationId,
