@@ -28,6 +28,8 @@ Plot Manager is a Flutter app for managing rental plots, units, tenants, and fin
 
 ## Running Automated Tests (CLI)
 
+V1.5: Iron-Clad Logic (11+ Automated Tests Passing).
+
 Run all tests:
 
 ```bash
