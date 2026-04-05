@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
@@ -6,15 +8,16 @@ import '../../core/theme.dart';
 import '../../models/unit_configuration.dart';
 import '../../services/supabase_service.dart';
 import '../../services/utility_rate_service.dart';
+import 'providers/theme_controller.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   static final NumberFormat _currencyFormat =
       NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
 
@@ -63,6 +66,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeModeProvider);
+    final isLightMode = themeMode == ThemeMode.light;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -74,8 +80,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           Card(
+            child: SwitchListTile(
+              secondary: const Icon(LucideIcons.sunMoon, size: 20),
+              value: isLightMode,
+              onChanged: (value) async {
+                HapticFeedback.lightImpact();
+                await ref.read(themeModeProvider.notifier).toggleMode(value);
+              },
+              title: const Text(
+                'Light Mode',
+                style: TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+              subtitle: Text(
+                isLightMode ? 'Crisp White Theme' : 'Midnight Slate Theme',
+                style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+              ),
+            ),
+          ),
+          Card(
             child: ListTile(
-              leading: const Icon(LucideIcons.droplets),
+              leading: const Icon(LucideIcons.droplets, size: 20),
               title: const Text(
                 'Utility Billing Rate',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -84,13 +108,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Current: ${_currencyFormat.format(_utilityRate)} per unit',
                 style: const TextStyle(fontFamily: AppTheme.appFontFamily),
               ),
-              trailing: const Icon(LucideIcons.chevronRight),
-              onTap: _showUtilityRateDialog,
+              trailing: const Icon(LucideIcons.chevronRight, size: 20),
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showUtilityRateDialog();
+              },
             ),
           ),
           Card(
             child: ListTile(
-              leading: const Icon(LucideIcons.droplet),
+              leading: const Icon(LucideIcons.droplet, size: 20),
               title: const Text(
                 'Utility Rate by Unit Type',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -99,8 +126,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Set custom rates for Bedsitter, Studio, etc.',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
               ),
-              trailing: const Icon(LucideIcons.chevronRight),
+              trailing: const Icon(LucideIcons.chevronRight, size: 20),
               onTap: () async {
+                HapticFeedback.lightImpact();
                 await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const UtilityRateByUnitTypeScreen(),
@@ -112,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           Card(
             child: ListTile(
-              leading: const Icon(LucideIcons.home),
+              leading: const Icon(LucideIcons.home, size: 20),
               title: const Text(
                 'Edit Unit Types',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -121,8 +149,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 'Default rent and occupancy rules',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
               ),
-              trailing: const Icon(LucideIcons.chevronRight),
+              trailing: const Icon(LucideIcons.chevronRight, size: 20),
               onTap: () {
+                HapticFeedback.lightImpact();
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const UnitTypeSettingsScreen(),
@@ -337,7 +366,7 @@ class _RateInputDialogState extends State<_RateInputDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       title: Text(
         widget.title,
         style: const TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -447,7 +476,7 @@ class _UnitTypeSettingsScreenState extends State<UnitTypeSettingsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           title: Text(
             existing == null ? 'Add Unit Type' : 'Edit Unit Type',
             style: const TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -490,11 +519,11 @@ class _UnitTypeSettingsScreenState extends State<UnitTypeSettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Policy presets: Bedsitter (1), Studio (1-2), One Bedroom (1-3), Two Bedroom (1-5).',
                   style: TextStyle(
                     fontFamily: AppTheme.appFontFamily,
-                    color: Color(0xFF94A3B8),
+                    color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFF94A3B8),
                     fontSize: 12,
                   ),
                 ),
@@ -656,7 +685,7 @@ class _UnitTypeSettingsScreenState extends State<UnitTypeSettingsScreen> {
                     return Card(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
-                        side: const BorderSide(color: Color(0xFF0D9488), width: 1),
+                        side: const BorderSide(color: Color(0xFFB8956A), width: 1),
                       ),
                       child: ListTile(
                         leading: const Icon(LucideIcons.home),

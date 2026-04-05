@@ -31,7 +31,7 @@ class _MaintenanceListScreenState extends State<MaintenanceListScreen> {
       case MaintenancePriority.high:
         return Colors.red;
       case MaintenancePriority.medium:
-        return Colors.orange;
+        return Color(0xFFD4A574);
       case MaintenancePriority.low:
         return Colors.teal;
     }

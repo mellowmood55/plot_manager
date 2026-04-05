@@ -129,8 +129,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
         borderRadius: BorderRadius.circular(18),
         gradient: LinearGradient(
           colors: isPositive
-              ? const [Color(0xFF0F766E), Color(0xFF134E4A)]
-              : const [Color(0xFF9A3412), Color(0xFF7C2D12)],
+              ? const [Color(0xFF7A5634), Color(0xFF9A744A)]
+              : const [Color(0xFF9A744A), Color(0xFF7A5634)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -174,12 +174,12 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               _miniMetricPill(
                 label: 'Revenue',
                 value: _currencyFormat.format(_revenue),
-                color: const Color(0xFF14B8A6),
+                color: AppTheme.primaryColor,
               ),
               _miniMetricPill(
                 label: 'Expenses',
                 value: _currencyFormat.format(_expenses),
-                color: const Color(0xFFFB923C),
+                color: AppTheme.tertiaryAccent,
               ),
             ],
           ),
@@ -193,7 +193,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: const Color(0xFFFACC15),
+        color: AppTheme.highlightAccent,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -234,7 +234,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     final occupancyPercent = (_potentialIncome.occupancyRate * 100).clamp(0, 100).toDouble();
 
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -263,7 +262,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               'Income Gap: ${_currencyFormat.format(_potentialIncome.potentialLoss)}',
               style: const TextStyle(
                 fontFamily: _fontFamily,
-                color: Color(0xFFFACC15),
+                color: AppTheme.secondaryAccent,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -273,8 +272,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               child: LinearProgressIndicator(
                 value: _potentialIncome.occupancyRate,
                 minHeight: 10,
-                backgroundColor: const Color(0xFF334155),
-                color: const Color(0xFF0D9488),
+                backgroundColor: Color(0x66E3C9A3),
+                color: AppTheme.primaryColor,
               ),
             ),
             const SizedBox(height: 8),
@@ -299,9 +298,9 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.18),
+        color: Colors.black.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.8)),
+        border: Border.all(color: color.withValues(alpha: 0.88)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -333,7 +332,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     final hasPieData = total > 0;
 
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -368,7 +366,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                                 sectionsSpace: 3,
                                 sections: [
                                   PieChartSectionData(
-                                    color: const Color(0xFF0D9488),
+                                    color: AppTheme.primaryColor,
                                     value: _rentCollected,
                                     title:
                                         '${((_rentCollected / total) * 100).toStringAsFixed(1)}%',
@@ -380,7 +378,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                                     ),
                                   ),
                                   PieChartSectionData(
-                                    color: const Color(0xFFF97316),
+                                    color: AppTheme.tertiaryAccent,
                                     value: _pendingRent,
                                     title: '${((_pendingRent / total) * 100).toStringAsFixed(1)}%',
                                     titleStyle: const TextStyle(
@@ -402,12 +400,12 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                                 ),
                               ),
                               alignment: Alignment.center,
-                              child: const Text(
+                              child: Text(
                                 'No rent\ndata',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: _fontFamily,
-                                  color: Color(0xFF94A3B8),
+                                  color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFF94A3B8),
                                 ),
                               ),
                             ),
@@ -418,13 +416,13 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildLegendLine(
-                            color: const Color(0xFF0D9488),
+                            color: AppTheme.primaryColor,
                             label: 'Rent Collected',
                             value: _currencyFormat.format(_rentCollected),
                           ),
                           const SizedBox(height: 12),
                           _buildLegendLine(
-                            color: const Color(0xFFF97316),
+                            color: AppTheme.tertiaryAccent,
                             label: 'Pending Rent',
                             value: _currencyFormat.format(_pendingRent),
                           ),
@@ -481,7 +479,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
   Widget _buildBarChartCard() {
     if (_trend.isEmpty) {
       return Card(
-        color: AppTheme.surfaceColor,
         child: const Padding(
           padding: EdgeInsets.all(16),
           child: Text(
@@ -498,7 +495,6 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     final maxY = _resolveBarMaxY();
 
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -591,8 +587,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               spacing: 16,
               runSpacing: 10,
               children: const [
-                _ChartLegend(label: 'Revenue', color: Color(0xFF0D9488)),
-                _ChartLegend(label: 'Expenses', color: Color(0xFFF97316)),
+                _ChartLegend(label: 'Revenue', color: AppTheme.primaryColor),
+                _ChartLegend(label: 'Expenses', color: AppTheme.tertiaryAccent),
               ],
             ),
           ],
@@ -608,13 +604,12 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
     final total = entries.fold<double>(0, (sum, item) => sum + item.value);
     final hasData = total > 0;
     const palette = [
-      Color(0xFF0D9488),
-      Color(0xFFF97316),
-      Color(0xFFF87171),
+      AppTheme.primaryColor,
+      AppTheme.tertiaryAccent,
+      AppTheme.secondaryAccent,
     ];
 
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -707,13 +702,13 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
               toY: data.revenue,
               width: 11,
               borderRadius: BorderRadius.circular(3),
-              color: const Color(0xFF0D9488),
+              color: AppTheme.primaryColor,
             ),
             BarChartRodData(
               toY: data.expenses,
               width: 11,
               borderRadius: BorderRadius.circular(3),
-              color: const Color(0xFFF97316),
+              color: AppTheme.tertiaryAccent,
             ),
           ],
         ),
@@ -786,11 +781,11 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                                   isDense: true,
                                   border: OutlineInputBorder(),
                                 ),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontFamily: _fontFamily,
-                                  color: Colors.white,
+                                  color: Theme.of(context).colorScheme.onSurface,
                                 ),
-                                dropdownColor: AppTheme.surfaceColor,
+                                dropdownColor: Theme.of(context).colorScheme.surface,
                                 items: FinanceRange.values
                                     .map(
                                       (range) => DropdownMenuItem<FinanceRange>(
@@ -833,8 +828,8 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                               );
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFACC15),
-                              foregroundColor: Colors.black,
+                              backgroundColor: AppTheme.primaryColor,
+                              foregroundColor: Colors.white,
                             ),
                             icon: const Icon(LucideIcons.walletCards),
                             label: const Text(

@@ -8,6 +8,7 @@ import 'features/auth/screens/signup_screen.dart';
 import 'features/home/dashboard_screen.dart';
 import 'features/maintenance/screens/contractor_registry_screen.dart';
 import 'features/reports/screens/finance_dashboard_screen.dart';
+import 'features/settings/providers/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,10 +22,13 @@ class MyApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final authState = ref.watch(authProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp(
       title: 'Plot Manager',
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       home: authState.when(
         data: (state) {
           if (state.session != null) {

@@ -1,4 +1,6 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../../core/theme.dart';
 import '../../core/supabase_config.dart';
@@ -99,23 +101,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     }
   }
 
-  Future<void> _openFinanceDashboard() async {
-    try {
-      _tabController.animateTo(1);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: Colors.red.shade700,
-          content: Text(
-            'Unable to open finance dashboard: $error',
-            style: const TextStyle(fontFamily: AppTheme.appFontFamily),
-          ),
-        ),
-      );
-    }
-  }
-
   Widget _buildPropertiesTab() {
     return Stack(
       children: [
@@ -124,7 +109,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           children: [
             Container(
               padding: const EdgeInsets.all(24.0),
-              color: AppTheme.surfaceColor,
+              color: Theme.of(context).colorScheme.surface,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
@@ -170,30 +155,45 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       itemBuilder: (context, index) {
                         final property = _properties[index];
 
-                        return Card(
-                          child: ListTile(
-                            title: Text(
-                              property.name,
-                              style: const TextStyle(
-                                fontFamily: AppTheme.appFontFamily,
-                                fontWeight: FontWeight.bold,
+                        return TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 20, end: 0),
+                          duration: Duration(milliseconds: 320 + (index * 55)),
+                          curve: Curves.easeOutCubic,
+                          builder: (context, value, child) {
+                            return Transform.translate(
+                              offset: Offset(0, value),
+                              child: Opacity(
+                                opacity: ((20 - value) / 20).clamp(0.0, 1.0),
+                                child: child,
                               ),
-                            ),
-                            subtitle: Text(
-                              property.location ?? 'No location set',
-                              style: const TextStyle(
-                                fontFamily: AppTheme.appFontFamily,
-                              ),
-                            ),
-                            trailing: const Icon(Icons.chevron_right),
-                            onTap: () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => PropertyDetailScreen(property: property),
+                            );
+                          },
+                          child: Card(
+                            child: ListTile(
+                              title: Text(
+                                property.name,
+                                style: const TextStyle(
+                                  fontFamily: AppTheme.appFontFamily,
+                                  fontWeight: FontWeight.bold,
                                 ),
-                              );
-                              await _loadDashboardData();
-                            },
+                              ),
+                              subtitle: Text(
+                                property.location ?? 'No location set',
+                                style: const TextStyle(
+                                  fontFamily: AppTheme.appFontFamily,
+                                ),
+                              ),
+                              trailing: const Icon(Icons.chevron_right, size: 20),
+                              onTap: () async {
+                                HapticFeedback.lightImpact();
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => PropertyDetailScreen(property: property),
+                                  ),
+                                );
+                                await _loadDashboardData();
+                              },
+                            ),
                           ),
                         );
                       },
@@ -212,6 +212,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               child: FloatingActionButton.extended(
                 backgroundColor: AppTheme.primaryColor,
                 onPressed: () async {
+                  HapticFeedback.lightImpact();
                   final created = await Navigator.of(context).push<bool>(
                     MaterialPageRoute(
                       builder: (_) => AddPropertyScreen(
@@ -225,7 +226,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     await _loadDashboardData();
                   }
                 },
-                icon: const Icon(Icons.add),
+                icon: const Icon(Icons.add, size: 20),
                 label: const Text(
                   'Add New Plot',
                   style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -260,8 +261,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         actions: [
           IconButton(
             tooltip: 'Maintenance',
-            icon: const Icon(LucideIcons.wrench),
+            icon: const Icon(LucideIcons.wrench, size: 20),
             onPressed: () {
+              HapticFeedback.lightImpact();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const MaintenanceListScreen(),
@@ -271,8 +273,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           IconButton(
             tooltip: 'Settings',
-            icon: const Icon(LucideIcons.cog),
+            icon: const Icon(LucideIcons.cog, size: 20),
             onPressed: () {
+              HapticFeedback.lightImpact();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => const SettingsScreen(),
@@ -282,8 +285,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           IconButton(
             tooltip: 'Logout',
-            icon: const Icon(LucideIcons.logOut),
+            icon: const Icon(LucideIcons.logOut, size: 20),
             onPressed: () async {
+              HapticFeedback.lightImpact();
               await SupabaseConfig.getClient().auth.signOut();
             },
           ),
@@ -314,6 +318,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       const SizedBox(height: 32.0),
                       ElevatedButton(
                         onPressed: () {
+                          HapticFeedback.lightImpact();
                           Navigator.of(context).push(
                             MaterialPageRoute(
                               builder: (context) => const CreateOrgScreen(),
@@ -325,12 +330,26 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     ],
                   ),
                 )
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildPropertiesTab(),
-                    const FinanceDashboardScreen(),
-                  ],
+              : PageTransitionSwitcher(
+                  duration: const Duration(milliseconds: 360),
+                  reverse: _tabController.index == 0,
+                  transitionBuilder: (child, animation, secondaryAnimation) {
+                    return SharedAxisTransition(
+                      animation: animation,
+                      secondaryAnimation: secondaryAnimation,
+                      transitionType: SharedAxisTransitionType.horizontal,
+                      child: child,
+                    );
+                  },
+                  child: _tabController.index == 0
+                      ? KeyedSubtree(
+                          key: const ValueKey('overview-tab'),
+                          child: _buildPropertiesTab(),
+                        )
+                      : const KeyedSubtree(
+                          key: ValueKey('finance-tab'),
+                          child: FinanceDashboardScreen(),
+                        ),
                 ),
     );
   }

@@ -1,6 +1,8 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -201,21 +203,22 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
 
     if (!mounted) return;
     if (resolved == true) {
+      HapticFeedback.vibrate();
       setState(() {
         _loadRequest();
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Color(0xFF0D9488),
-          content: Text(
-            'Ticket marked as resolved.',
-            style: TextStyle(
-              fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              content: Text(
+                'Ticket marked as resolved.',
+                style: TextStyle(
+                  fontFamily: AppTheme.appFontFamily,
+                  color: Theme.of(context).colorScheme.onPrimary,
+                ),
+              ),
             ),
-          ),
-        ),
-      );
+          );
     }
   }
 
@@ -240,7 +243,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
       case MaintenancePriority.high:
         return Colors.red;
       case MaintenancePriority.medium:
-        return Colors.orange;
+        return Color(0xFFD4A574);
       case MaintenancePriority.low:
         return Colors.teal;
     }
@@ -260,7 +263,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
   Color _priorityTextColor(MaintenancePriority priority) {
     switch (priority) {
       case MaintenancePriority.medium:
-        return Colors.white;
+        return Theme.of(context).colorScheme.onSurface;
       default:
         return _priorityColor(priority);
     }
@@ -317,7 +320,10 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
           runSpacing: 8,
           children: [
             ElevatedButton.icon(
-              onPressed: () => _callContractor(contractor.phone),
+              onPressed: () {
+                HapticFeedback.lightImpact();
+                _callContractor(contractor.phone);
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppTheme.primaryColor,
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -357,9 +363,9 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
           backgroundColor: Colors.red.shade700,
           content: Text(
             emptyMessage,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ),
@@ -376,9 +382,9 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
           backgroundColor: Colors.red.shade700,
           content: Text(
             emptyMessage,
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ),
@@ -390,7 +396,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
       context: context,
       builder: (dialogContext) {
         return Dialog(
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: Theme.of(dialogContext).colorScheme.surface,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -401,10 +407,10 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                     Expanded(
                       child: Text(
                         title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: AppTheme.appFontFamily,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -426,14 +432,14 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                     resolvedUrl,
                     fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) {
-                      return const SizedBox(
+                      return SizedBox(
                         height: 220,
                         child: Center(
                           child: Text(
                             'No Image Available',
                             style: TextStyle(
                               fontFamily: AppTheme.appFontFamily,
-                              color: Colors.white70,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -471,7 +477,10 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                 if (req.contractor != null)
                   IconButton(
                     tooltip: 'Send Job Brief',
-                    onPressed: () => _sendJobBrief(req),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _sendJobBrief(req);
+                    },
                     icon: const Icon(
                       FontAwesomeIcons.whatsapp,
                       color: Color(0xFF25D366),
@@ -480,7 +489,10 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                 if (req.status == MaintenanceStatus.open)
                   IconButton(
                     tooltip: 'Edit Ticket',
-                    onPressed: () => _openEditScreen(req),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _openEditScreen(req);
+                    },
                     icon: const Icon(Icons.edit),
                   ),
               ];
@@ -605,7 +617,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       ),
                       icon: const Icon(Icons.photo_library_outlined),
                       label: const Text(
@@ -621,7 +633,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
+                        foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       ),
                       icon: const Icon(Icons.photo_library_outlined),
                       label: const Text(
@@ -635,7 +647,10 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                 if (request.status != MaintenanceStatus.completed &&
                     request.status != MaintenanceStatus.closed)
                   ElevatedButton.icon(
-                    onPressed: () => _openResolveDialog(request),
+                    onPressed: () {
+                      HapticFeedback.lightImpact();
+                      _openResolveDialog(request);
+                    },
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text(
                       'Mark as Resolved',
@@ -687,9 +702,9 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
           backgroundColor: Colors.red.shade700,
           content: Text(
             'Failed to pick after photo: $error',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ),
@@ -745,9 +760,9 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
           backgroundColor: Colors.red.shade700,
           content: Text(
             'Failed to resolve ticket: $error',
-            style: const TextStyle(
+            style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onPrimary,
             ),
           ),
         ),
@@ -777,11 +792,20 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
           tooltip: 'Cancel',
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+      body: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
             TextField(
               controller: _actualCostController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -805,7 +829,7 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
               Container(
                 height: 120,
                 decoration: BoxDecoration(
-                  color: Colors.black26,
+                  color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.62),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Center(
@@ -826,15 +850,20 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
             ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
-              onPressed: _isSubmitting ? null : _confirmResolution,
+              onPressed: _isSubmitting
+                  ? null
+                  : () {
+                      HapticFeedback.lightImpact();
+                      _confirmResolution();
+                    },
               icon: const Icon(Icons.check_circle_outline),
               label: _isSubmitting
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 16,
                       height: 16,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.onPrimary),
                       ),
                     )
                   : const Text(
@@ -843,6 +872,8 @@ class _ResolveMaintenanceScreenState extends State<_ResolveMaintenanceScreen> {
                     ),
             ),
           ],
+            ),
+          ),
         ),
       ),
     );

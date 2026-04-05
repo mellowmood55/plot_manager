@@ -246,7 +246,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppTheme.surfaceColor,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -272,7 +272,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                           width: 44,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white24,
+                            color: AppTheme.lightTextColor,
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
@@ -293,7 +293,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                               fontFamily: AppTheme.appFontFamily,
-                              color: Colors.white70,
+                              color: AppTheme.lightTextColor,
                             ),
                       ),
                       const SizedBox(height: 20),
@@ -539,7 +539,6 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                     padding: const EdgeInsets.all(16),
                     children: [
                       Card(
-                        color: AppTheme.surfaceColor,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Column(
@@ -574,7 +573,6 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                       const SizedBox(height: 16),
                       if (recommendedContractor != null)
                         Card(
-                          color: AppTheme.surfaceColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                             side: BorderSide(color: AppTheme.primaryColor.withOpacity(0.9), width: 1.2),
@@ -608,7 +606,6 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                       if (recommendedContractor != null) const SizedBox(height: 12),
                       if (filteredContractors.isEmpty)
                         Card(
-                          color: AppTheme.surfaceColor,
                           child: Padding(
                             padding: const EdgeInsets.all(20),
                             child: Column(
@@ -643,7 +640,6 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Card(
-                              color: AppTheme.surfaceColor,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(20),
                                 side: BorderSide(
@@ -695,7 +691,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                                     '${contractor.specialty} • ${contractor.phone}\n${activeTickets} active tickets',
                                     style: const TextStyle(
                                       fontFamily: AppTheme.appFontFamily,
-                                      color: Colors.white70,
+                                      color: AppTheme.lightTextColor,
                                     ),
                                   ),
                                 ),
@@ -710,7 +706,7 @@ class _ContractorRegistryScreenState extends State<ContractorRegistryScreen> {
                                       style: const TextStyle(
                                         fontFamily: AppTheme.appFontFamily,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: AppTheme.lightTextColor,
                                       ),
                                     ),
                                   ],
