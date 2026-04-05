@@ -81,7 +81,7 @@ class _SpecialtyDropdownFieldState extends State<SpecialtyDropdownField> {
       decoration: const InputDecoration(
         labelText: 'Specialty',
       ),
-      dropdownColor: AppTheme.surfaceColor,
+      dropdownColor: Theme.of(context).colorScheme.surface,
       iconEnabledColor: AppTheme.primaryColor,
       style: const TextStyle(
         fontFamily: AppTheme.appFontFamily,

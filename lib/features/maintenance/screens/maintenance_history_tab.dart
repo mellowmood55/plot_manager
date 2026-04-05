@@ -260,7 +260,7 @@ class _MaintenanceCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 12,
                         fontFamily: 'Comic Sans MS',
-                        color: Colors.green,
+                        color: Color(0xFF8B7355),
                       ),
                     ),
                 ],

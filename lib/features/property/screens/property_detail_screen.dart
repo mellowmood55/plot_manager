@@ -164,7 +164,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
           return StatefulBuilder(
             builder: (context, setState) {
               return AlertDialog(
-              backgroundColor: AppTheme.surfaceColor,
+              backgroundColor: Theme.of(context).colorScheme.surface,
               title: const Text(
                 'Add Unit',
                 style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -375,7 +375,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: Theme.of(dialogContext).colorScheme.surface,
           title: const Text(
             'Delete Unit',
             style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -563,7 +563,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                                 borderRadius: BorderRadius.circular(20),
                                 side: BorderSide(
                                   color: isOccupied
-                                      ? const Color(0xFF64748B)
+                                      ? Theme.of(context).brightness == Brightness.dark ? Colors.grey[400]! : const Color(0xFF64748B)
                                       : AppTheme.primaryColor,
                                   width: 2,
                                 ),
@@ -573,15 +573,21 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      item.unit.unitNumber,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontFamily: AppTheme.appFontFamily,
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                    Hero(
+                                      tag: 'unit-number-${item.unit.id}',
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: Text(
+                                          item.unit.unitNumber,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontFamily: AppTheme.appFontFamily,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                        ),
+                                      ),
                                     ),
                                     const SizedBox(height: 6),
                                     Align(
@@ -591,7 +597,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                                         icon: const Icon(LucideIcons.trash2),
                                         color: canDelete
                                             ? Colors.red.shade400
-                                            : const Color(0xFF64748B),
+                                            : Theme.of(context).brightness == Brightness.dark ? Colors.grey[400]! : const Color(0xFF64748B),
                                         tooltip: canDelete
                                             ? 'Delete Unit'
                                             : 'Please move out the tenant before deleting this unit.',
@@ -620,9 +626,9 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                                         item.tenant!.name,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontFamily: AppTheme.appFontFamily,
-                                          color: Color(0xFFCBD5E1),
+                                          color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFFCBD5E1),
                                         ),
                                       ),
                                   ],

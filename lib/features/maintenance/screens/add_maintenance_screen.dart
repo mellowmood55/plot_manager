@@ -243,7 +243,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             'Failed to load contractors: $error',
             style: const TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: AppTheme.lightTextColor,
             ),
           ),
         ),
@@ -358,7 +358,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             'Failed to load contacts: $error',
             style: const TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: AppTheme.lightTextColor,
             ),
           ),
         ),
@@ -385,7 +385,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             'Failed to pick image: $e',
             style: const TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: AppTheme.lightTextColor,
             ),
           ),
         ),
@@ -434,7 +434,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 'Photo upload failed. Please try again. Details: $uploadError',
                 style: const TextStyle(
                   fontFamily: AppTheme.appFontFamily,
-                  color: Colors.white,
+                  color: AppTheme.lightTextColor,
                 ),
               ),
             ),
@@ -496,7 +496,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                 : 'Maintenance request updated successfully!',
             style: TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: AppTheme.lightTextColor,
             ),
           ),
           backgroundColor: Color(0xFF0D9488),
@@ -512,7 +512,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
             'Error creating request: $e',
             style: const TextStyle(
               fontFamily: AppTheme.appFontFamily,
-              color: Colors.white,
+              color: AppTheme.lightTextColor,
             ),
           ),
         ),
@@ -737,10 +737,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                               padding: const EdgeInsets.only(left: 8),
                               child: Text(
                                 'Score ${contractor.reliabilityLabel} • $activeTickets active',
-                                style: const TextStyle(
+                                    style: TextStyle(
                                   fontFamily: AppTheme.appFontFamily,
                                   fontSize: 11,
-                                  color: Colors.white70,
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ),
@@ -788,10 +788,10 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     ),
                     child: Text(
                       'Warning: ${_selectedContractorWorkloadName ?? 'This contractor'} has $_selectedContractorWorkloadCount active jobs. This may cause delays.',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: AppTheme.appFontFamily,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -813,9 +813,9 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     _sortedMatchingContractors.isEmpty
                         ? 'No contractors match ${_categoryController.text.trim()} yet.'
                         : 'Recommended contractor is highlighted by score and open tickets.',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: AppTheme.appFontFamily,
-                      color: Colors.white70,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontSize: 12,
                     ),
                   ),
@@ -858,7 +858,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                     onPressed: _isUploading ? null : _pickContractorFromContacts,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: Theme.of(context).colorScheme.onPrimary,
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
                     ),
                     child: const Text(
@@ -966,12 +966,12 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                   backgroundColor: AppTheme.primaryColor,
                 ),
                 child: _isUploading
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.onPrimary),
                         ),
                       )
                     : const Text(

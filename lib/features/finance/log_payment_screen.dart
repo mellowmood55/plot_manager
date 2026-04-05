@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
@@ -115,6 +118,7 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
   }
 
   Future<void> _savePayment() async {
+    HapticFeedback.lightImpact();
     final amount = double.tryParse(_amountController.text.trim());
     final waterPrevious = double.tryParse(_waterPreviousController.text.trim());
     final waterCurrent = double.tryParse(_waterCurrentController.text.trim());
@@ -162,6 +166,47 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
 
     final totalAmount = amount + (_includeUtility ? _utilityAmount : 0);
 
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+          child: AlertDialog(
+            backgroundColor: Theme.of(dialogContext).colorScheme.surface.withValues(alpha: 0.78),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text(
+              'Confirm Payment',
+              style: TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+            content: Text(
+              'Save payment of ${_currencyFormat.format(totalAmount)}?',
+              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text(
+                  'Confirm',
+                  style: TextStyle(fontFamily: AppTheme.appFontFamily),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
@@ -181,6 +226,7 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
 
       if (!mounted) return;
 
+      HapticFeedback.vibrate();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: AppTheme.primaryColor,
@@ -255,11 +301,11 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                     hintStyle: const TextStyle(fontFamily: AppTheme.appFontFamily),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF64748B), width: 1.5),
+                      borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[600]! : const Color(0xFF64748B), width: 1.5),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Color(0xFF94A3B8), width: 2),
+                      borderSide: BorderSide(color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : const Color(0xFF94A3B8), width: 2),
                     ),
                   ),
                 ),
@@ -300,13 +346,13 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   value: _selectedMethod,
-                  dropdownColor: AppTheme.surfaceColor,
+                  dropdownColor: Theme.of(context).colorScheme.surface,
                   decoration: const InputDecoration(
                     labelText: 'Payment Method',
                   ),
                   style: const TextStyle(
                     fontFamily: AppTheme.appFontFamily,
-                    color: Colors.white,
+                    color: AppTheme.lightTextColor,
                   ),
                   items: _methods
                       .map(
@@ -332,9 +378,9 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.surfaceColor,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFFACC15), width: 1.2),
+                    border: Border.all(color: const Color(0xFFE8D5BD), width: 1.2),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,7 +388,7 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                       SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
                         value: _includeUtility,
-                        activeColor: const Color(0xFFFACC15),
+                          activeColor: const Color(0xFFE8D5BD),
                         title: const Text(
                           'Utility Billing (Optional)',
                           style: TextStyle(

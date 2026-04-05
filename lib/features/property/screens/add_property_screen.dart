@@ -128,7 +128,7 @@ class _AddPropertyScreenState extends ConsumerState<AddPropertyScreen> {
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               value: _selectedPropertyType,
-              dropdownColor: AppTheme.surfaceColor,
+              dropdownColor: Theme.of(context).colorScheme.surface,
               decoration: const InputDecoration(
                 hintText: 'Property Type',
                 labelText: 'Property Type',
@@ -161,11 +161,11 @@ class _AddPropertyScreenState extends ConsumerState<AddPropertyScreen> {
             ),
             if (_selectedPropertyType == 'Residential') ...[
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Residential plots support bedroom-based unit type occupancy policies.',
                 style: TextStyle(
                   fontFamily: AppTheme.appFontFamily,
-                  color: Color(0xFF94A3B8),
+                  color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFF94A3B8),
                 ),
               ),
             ],

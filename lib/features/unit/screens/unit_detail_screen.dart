@@ -1,4 +1,7 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:printing/printing.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -44,6 +47,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
   double _unitRentGenerated = 0;
   bool _isGeneratingReceipt = false;
   late TabController _tabController;
+  int _lastReportedTabIndex = 0;
 
   static const Map<String, (int min, int max)> _fallbackOccupancyRules = {
     'bedsitter': (1, 1),
@@ -60,14 +64,34 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
     super.initState();
     _unit = widget.unit;
     _tenant = widget.tenant;
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(
+      length: 2,
+      vsync: this,
+      animationDuration: const Duration(milliseconds: 280),
+    );
+    _tabController.addListener(_handleTabChanged);
+    _lastReportedTabIndex = _tabController.index;
     _loadPaymentData();
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _handleTabChanged() {
+    if (!mounted) {
+      return;
+    }
+
+    if (_tabController.index == _lastReportedTabIndex || _tabController.indexIsChanging) {
+      return;
+    }
+
+    _lastReportedTabIndex = _tabController.index;
+    HapticFeedback.lightImpact();
   }
 
   Future<void> _loadPaymentData() async {
@@ -174,7 +198,6 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
     final hasWarning = ratio > 0.20;
 
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -233,6 +256,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
   }
 
   Future<void> _openLogPaymentScreen() async {
+    HapticFeedback.lightImpact();
     if (_tenant == null) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -335,7 +359,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: AppTheme.surfaceColor,
+          backgroundColor: Theme.of(context).colorScheme.surface,
           title: const Text(
             'Add Tenant',
             style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -378,6 +402,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
             ),
             ElevatedButton(
               onPressed: () async {
+                HapticFeedback.lightImpact();
                 final name = nameController.text.trim();
                 final phone = phoneController.text.trim();
                 final nationalId = nationalIdController.text.trim();
@@ -458,7 +483,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      backgroundColor: Color(0xFF0D9488),
+                      backgroundColor: Color(0xFFB8956A),
                       content: Text(
                         'Tenant added successfully.',
                         style: TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -545,12 +570,30 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          _unit.name,
-          style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+        title: Hero(
+          tag: 'unit-number-${_unit.id}',
+          child: Material(
+            color: Colors.transparent,
+            child: Text(
+              _unit.name,
+              style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+            ),
+          ),
         ),
         bottom: TabBar(
           controller: _tabController,
+          onTap: (index) {
+            _tabController.animateTo(
+              index,
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOutCubic,
+            );
+          },
+          indicatorSize: TabBarIndicatorSize.label,
+          indicatorPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+          indicator: const UnderlineTabIndicator(
+            borderSide: BorderSide(color: AppTheme.primaryColor, width: 4),
+          ),
           tabs: const [
             Tab(text: 'Overview'),
             Tab(text: 'Maintenance'),
@@ -559,6 +602,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
       ),
       body: TabBarView(
         controller: _tabController,
+        physics: const BouncingScrollPhysics(),
         children: [
           // Overview Tab
           Padding(
@@ -654,7 +698,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
                                 _SummaryBadge(
                                   title: 'Total Paid this Month',
                                   value: _currency(_totalPaidThisMonth),
-                                  color: const Color(0xFF0D9488),
+                                  color: const Color(0xFFB8956A),
                                 ),
                                 _SummaryBadge(
                                   title: _balanceDue >= 0
@@ -662,8 +706,8 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
                                       : 'Tenant Credit (You Owe)',
                                   value: _currency(_balanceDue.abs()),
                                   color: _balanceDue >= 0
-                                      ? Colors.orange.shade700
-                                      : const Color(0xFF0D9488),
+                                    ? Color(0xFF8B7355)
+                                    : const Color(0xFFB8956A),
                                 ),
                               ],
                             ),
@@ -800,7 +844,7 @@ class _SummaryBadge extends StatelessWidget {
             style: const TextStyle(
               fontFamily: AppTheme.appFontFamily,
               fontSize: 12,
-              color: Color(0xFFCBD5E1),
+              color: Color(0xFFD4A574),
             ),
           ),
           const SizedBox(height: 4),

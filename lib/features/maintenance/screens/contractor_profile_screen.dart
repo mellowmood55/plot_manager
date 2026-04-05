@@ -150,7 +150,6 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                         padding: const EdgeInsets.all(16),
                         children: [
                           Card(
-                            color: AppTheme.surfaceColor,
                             child: Padding(
                               padding: const EdgeInsets.all(18),
                               child: Column(
@@ -167,10 +166,10 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                                   const SizedBox(height: 6),
                                   Text(
                                     contractor.specialty,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: _fontFamily,
                                       fontSize: 16,
-                                      color: Color(0xFFCBD5E1),
+                                      color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFFCBD5E1),
                                     ),
                                   ),
                                   const SizedBox(height: 14),
@@ -179,7 +178,7 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                                     child: ElevatedButton.icon(
                                       onPressed: _callContractor,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF0D9488),
+                                        backgroundColor: AppTheme.primaryColor,
                                         foregroundColor: Colors.white,
                                         padding: const EdgeInsets.symmetric(vertical: 16),
                                       ),
@@ -239,7 +238,6 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                           else
                             ..._history.map(
                               (item) => Card(
-                                color: AppTheme.surfaceColor,
                                 child: ListTile(
                                   title: Text(
                                     item.title,
@@ -256,9 +254,9 @@ class _ContractorProfileScreenState extends State<ContractorProfileScreen> {
                                     item.actualCost == null
                                         ? '-'
                                         : _currencyFormat.format(item.actualCost),
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: _fontFamily,
-                                      color: Color(0xFF0D9488),
+                                      color: AppTheme.primaryColor,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
@@ -294,7 +292,6 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      color: AppTheme.surfaceColor,
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
@@ -302,10 +299,10 @@ class _StatCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontFamily: 'Comic Sans MS',
                 fontSize: 13,
-                color: Color(0xFFCBD5E1),
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.grey[500]! : Color(0xFFCBD5E1),
               ),
             ),
             const SizedBox(height: 8),

@@ -145,8 +145,9 @@ class _ArrearsReportScreenState extends State<ArrearsReportScreen> {
                         separatorBuilder: (_, __) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final item = _arrears[index];
+                          final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+                          
                           return Card(
-                            color: AppTheme.surfaceColor,
                             child: Padding(
                               padding: const EdgeInsets.all(16),
                               child: Column(
@@ -170,15 +171,15 @@ class _ArrearsReportScreenState extends State<ArrearsReportScreen> {
                                           vertical: 5,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFFACC15),
+                                          color: AppTheme.highlightAccent,
                                           borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
                                           _currencyFormat.format(item.balanceDue),
-                                          style: const TextStyle(
+                                          style: TextStyle(
                                             fontFamily: _fontFamily,
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.black,
+                                            color: isDarkMode ? Colors.black87 : const Color(0xFF5A4A3A),
                                           ),
                                         ),
                                       ),
@@ -187,9 +188,9 @@ class _ArrearsReportScreenState extends State<ArrearsReportScreen> {
                                   const SizedBox(height: 8),
                                   Text(
                                     'Unit: ${item.unitNumber}',
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontFamily: _fontFamily,
-                                      color: Color(0xFFCBD5E1),
+                                      color: isDarkMode ? Colors.grey[400] : Colors.grey[600],
                                     ),
                                   ),
                                   const SizedBox(height: 10),
@@ -200,8 +201,8 @@ class _ArrearsReportScreenState extends State<ArrearsReportScreen> {
                                         _sendReminder(item);
                                       },
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFFACC15),
-                                        foregroundColor: Colors.black,
+                                        backgroundColor: AppTheme.primaryColor,
+                                        foregroundColor: Colors.white,
                                       ),
                                       icon: const Icon(LucideIcons.messageCircle),
                                       label: const Text(
