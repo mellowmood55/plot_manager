@@ -1,4 +1,3 @@
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -781,7 +780,7 @@ class _UnitDetailScreenState extends State<UnitDetailScreen>
                                       ),
                                     );
                                   },
-                                  separatorBuilder: (_, __) => const Divider(height: 1),
+                                  separatorBuilder: (_, _) => const Divider(height: 1),
                                   itemCount: _payments.length,
                                 ),
                               ),

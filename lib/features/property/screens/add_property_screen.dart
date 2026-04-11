@@ -127,7 +127,7 @@ class _AddPropertyScreenState extends ConsumerState<AddPropertyScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedPropertyType,
+              initialValue: _selectedPropertyType,
               dropdownColor: Theme.of(context).colorScheme.surface,
               decoration: const InputDecoration(
                 hintText: 'Property Type',

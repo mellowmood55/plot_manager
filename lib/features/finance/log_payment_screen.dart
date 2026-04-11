@@ -345,7 +345,7 @@ class _LogPaymentScreenState extends State<LogPaymentScreen> {
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
-                  value: _selectedMethod,
+                  initialValue: _selectedMethod,
                   dropdownColor: Theme.of(context).colorScheme.surface,
                   decoration: const InputDecoration(
                     labelText: 'Payment Method',

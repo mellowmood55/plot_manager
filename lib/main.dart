@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/theme.dart';
-import 'core/supabase_config.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/signup_screen.dart';
@@ -9,10 +8,10 @@ import 'features/home/dashboard_screen.dart';
 import 'features/maintenance/screens/contractor_registry_screen.dart';
 import 'features/reports/screens/finance_dashboard_screen.dart';
 import 'features/settings/providers/theme_controller.dart';
+import 'features/tenant/screens/tenant_dashboard_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SupabaseConfig.initialize();
   runApp(const ProviderScope(child: MyApp()));
 }
 
@@ -31,7 +30,11 @@ class MyApp extends ConsumerWidget {
       themeMode: themeMode,
       home: authState.when(
         data: (state) {
-          if (state.session != null) {
+          if (state.isAuthenticated) {
+            if (state.isTenant) {
+              return const TenantDashboardScreen();
+            }
+
             return const DashboardScreen();
           }
 
@@ -52,6 +55,7 @@ class MyApp extends ConsumerWidget {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/dashboard': (context) => const DashboardScreen(),
+        '/tenant-dashboard': (context) => const TenantDashboardScreen(),
         '/contractors': (context) => const ContractorRegistryScreen(),
         '/finance': (context) => const FinanceDashboardScreen(),
       },

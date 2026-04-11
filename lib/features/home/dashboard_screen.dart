@@ -1,11 +1,11 @@
 import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../auth/providers/auth_provider.dart';
 import '../../core/theme.dart';
-import '../../core/supabase_config.dart';
 import '../../models/property.dart';
-import '../../services/supabase_service.dart';
 import '../maintenance/screens/maintenance_list_screen.dart';
 import '../property/screens/add_property_screen.dart';
 import '../property/screens/property_detail_screen.dart';
@@ -13,14 +13,14 @@ import '../org/create_org_screen.dart';
 import '../settings/settings_screen.dart';
 import '../reports/screens/finance_dashboard_screen.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   
   String? _displayName;
@@ -51,37 +51,17 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   Future<void> _loadDashboardData() async {
     try {
-      final client = SupabaseConfig.getClient();
-      final user = client.auth.currentUser;
+      final authState = ref.read(authProvider).value;
+      final displayName = authState?.displayName ?? 'Landlord';
+      final orgId = authState?.profile?.organizationId;
 
-      if (user != null) {
-        final metadata = user.userMetadata;
-        final String displayName = metadata?['full_name'] ?? user.email ?? 'Landlord';
-
-        final profileResponse = await client
-            .from('profiles')
-            .select('organization_id')
-            .eq('id', user.id)
-            .maybeSingle();
-
-        final String? orgId = profileResponse?['organization_id'] as String?;
-
-        String? orgName;
-        List<Property> properties = [];
-
-        if (orgId != null) {
-          orgName = await SupabaseService.instance.getOrganizationName(orgId);
-          properties = await SupabaseService.instance.fetchPropertiesByOrganization(orgId);
-        }
-
-        setState(() {
-          _displayName = displayName;
-          _organizationId = orgId;
-          _organizationName = orgName;
-          _properties = properties;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _displayName = displayName;
+        _organizationId = orgId;
+        _organizationName = orgId == null ? null : 'Your Organization';
+        _properties = const [];
+        _isLoading = false;
+      });
     } catch (error) {
       setState(() {
         _isLoading = false;
@@ -101,7 +81,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     }
   }
 
-  Widget _buildPropertiesTab() {
+  Widget _buildPropertiesTab(String displayName) {
     return Stack(
       children: [
         Column(
@@ -127,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   const SizedBox(height: 4.0),
                   Center(
                     child: Text(
-                      '$_displayName',
+                      displayName,
                       textAlign: TextAlign.center,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                             fontFamily: AppTheme.appFontFamily,
@@ -151,7 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   : ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
                       itemCount: _properties.length,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, _) => const SizedBox(height: 12),
                       itemBuilder: (context, index) {
                         final property = _properties[index];
 
@@ -240,6 +220,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider).value;
+    final displayName = authState?.displayName ?? _displayName ?? 'Landlord';
+    final organizationId = authState?.profile?.organizationId ?? _organizationId;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Plot Manager'),
@@ -288,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             icon: const Icon(LucideIcons.logOut, size: 20),
             onPressed: () async {
               HapticFeedback.lightImpact();
-              await SupabaseConfig.getClient().auth.signOut();
+              await ref.read(authProvider.notifier).logout();
             },
           ),
         ],
@@ -297,7 +281,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : (_organizationId == null)
+              : (organizationId == null)
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -344,7 +328,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   child: _tabController.index == 0
                       ? KeyedSubtree(
                           key: const ValueKey('overview-tab'),
-                          child: _buildPropertiesTab(),
+                          child: _buildPropertiesTab(displayName),
                         )
                       : const KeyedSubtree(
                           key: ValueKey('finance-tab'),

@@ -776,7 +776,7 @@ class _FinanceDashboardScreenState extends State<FinanceDashboardScreen> {
                             SizedBox(
                               width: 170,
                               child: DropdownButtonFormField<FinanceRange>(
-                                value: _selectedRange,
+                                initialValue: _selectedRange,
                                 decoration: const InputDecoration(
                                   isDense: true,
                                   border: OutlineInputBorder(),

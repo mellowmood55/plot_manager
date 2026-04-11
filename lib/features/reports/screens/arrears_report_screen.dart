@@ -142,7 +142,7 @@ class _ArrearsReportScreenState extends State<ArrearsReportScreen> {
                       child: ListView.separated(
                         padding: const EdgeInsets.all(16),
                         itemCount: _arrears.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (context, index) {
                           final item = _arrears[index];
                           final isDarkMode = Theme.of(context).brightness == Brightness.dark;

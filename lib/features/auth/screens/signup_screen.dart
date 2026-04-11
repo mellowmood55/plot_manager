@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/supabase_config.dart';
-import '../../../core/theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SignupScreen extends StatefulWidget {
+import '../../../core/backend_api.dart';
+import '../../../core/theme.dart';
+import '../providers/auth_provider.dart';
+
+class SignupScreen extends ConsumerStatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  ConsumerState<SignupScreen> createState() => _SignupScreenState();
 }
 
-class _SignupScreenState extends State<SignupScreen> {
+class _SignupScreenState extends ConsumerState<SignupScreen> {
   final _fullNameController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+
   bool _isLoading = false;
   String? _errorMessage;
 
@@ -27,39 +30,84 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
+  String _sanitizeEmail(String raw) {
+    return raw
+        .trim()
+        .replaceAll(RegExp(r'[\u2018\u2019\u201C\u201D]'), '')
+        .replaceAll('"', '')
+        .replaceAll("'", '')
+        .replaceAll(' ', '')
+        .toLowerCase();
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email);
+  }
+
   Future<void> _signup() async {
+    final fullName = _fullNameController.text.trim();
+    final email = _sanitizeEmail(_emailController.text);
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text;
+
+    if (fullName.isEmpty) {
+      setState(() {
+        _errorMessage = 'Full name is required.';
+      });
+      return;
+    }
+
+    if (!_isValidEmail(email)) {
+      setState(() {
+        _errorMessage = 'Please enter a valid email address (example: name@example.com).';
+      });
+      return;
+    }
+
+    if (password.length < 6) {
+      setState(() {
+        _errorMessage = 'Password must be at least 6 characters.';
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      await SupabaseConfig.getClient().auth.signUp(
-            email: _emailController.text.trim(),
-            password: _passwordController.text,
-            data: {
-              'full_name': _fullNameController.text.trim(),
-              'phone': _phoneController.text.trim(),
-            },
+      await ref.read(authProvider.notifier).signup(
+            fullName: fullName,
+            email: email,
+            phone: phone,
+            password: password,
           );
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Sign up successful! Please check your email.'),
-          ),
-        );
-        Navigator.of(context).pushNamed('/login');
+      _emailController.text = email;
+
+      if (!mounted) {
+        return;
       }
-    } on AuthException catch (error) {
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Account created successfully.'),
+        ),
+      );
+    } on BackendApiException catch (error) {
       setState(() {
         _errorMessage = error.message;
       });
-    } catch (error) {
+    } catch (_) {
       setState(() {
         _errorMessage = 'An unexpected error occurred';
       });
     } finally {
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         _isLoading = false;
       });
@@ -130,6 +178,8 @@ class _SignupScreenState extends State<SignupScreen> {
                       prefixIcon: Icon(Icons.email_outlined),
                     ),
                     keyboardType: TextInputType.emailAddress,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     enabled: !_isLoading,
                   ),
                   const SizedBox(height: 16.0),

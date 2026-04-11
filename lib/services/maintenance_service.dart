@@ -418,7 +418,7 @@ class MaintenanceService {
           'status': MaintenanceStatus.completed.value,
           'actual_cost': actualCost,
           'resolved_at': DateTime.now().toUtc().toIso8601String(),
-          if (normalizedAfterImageUrl != null) 'after_image_url': normalizedAfterImageUrl,
+          'after_image_url': ?normalizedAfterImageUrl,
         })
         .eq('id', requestId);
     } catch (e) {
@@ -449,7 +449,7 @@ class MaintenanceService {
             'category': category,
             'priority': priority.value,
             'estimated_cost': estimatedCost,
-            if (normalizedImageUrl != null) 'image_url': normalizedImageUrl,
+            'image_url': ?normalizedImageUrl,
             'contractor_id': contractorId,
           })
           .eq('id', requestId);
@@ -478,9 +478,9 @@ class MaintenanceService {
         .from('maintenance_requests')
         .update({
           'status': status.value,
-          if (actualCost != null) 'actual_cost': actualCost,
-          if (normalizedImageUrl != null) 'image_url': normalizedImageUrl,
-          if (normalizedAfterImageUrl != null) 'after_image_url': normalizedAfterImageUrl,
+          'actual_cost': ?actualCost,
+          'image_url': ?normalizedImageUrl,
+          'after_image_url': ?normalizedAfterImageUrl,
         })
         .eq('id', requestId);
     } catch (e) {

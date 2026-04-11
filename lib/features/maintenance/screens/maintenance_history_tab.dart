@@ -9,10 +9,10 @@ class MaintenanceHistoryTab extends StatefulWidget {
   final VoidCallback? onMaintenanceChanged;
 
   const MaintenanceHistoryTab({
-    Key? key,
+    super.key,
     required this.unitId,
     this.onMaintenanceChanged,
-  }) : super(key: key);
+  });
 
   @override
   State<MaintenanceHistoryTab> createState() => _MaintenanceHistoryTabState();

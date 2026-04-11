@@ -19,12 +19,16 @@ Plot Manager is a Flutter app for managing rental plots, units, tenants, and fin
 
 1. Install Flutter SDK.
 2. Run `flutter pub get`.
-3. Configure Supabase credentials in `lib/core/supabase_config.dart`.
-4. Run SQL migrations from the repository root:
-   - `unit_configurations_setup.sql`
-   - `unit_number_canonicalization.sql`
-   - `payments_phase4.sql`
-5. Start the app with `flutter run`.
+3. Configure the Neon backend in `backend/.env`:
+   - `PORT=4000`
+   - `JWT_SECRET=<long-random-secret>`
+   - `NEON_DATABASE_URL=<your-neon-postgres-url>`
+4. Start the backend from `backend/` with `npm run dev`.
+5. Start the Flutter app from the repository root with `flutter run`.
+
+The app now chooses a local backend URL automatically: `127.0.0.1:4000` on desktop and `10.0.2.2:4000` on Android emulator. If you move the backend to another host, set `NEON_API_BASE_URL` in the Flutter launch config or pass it as a dart define.
+
+The old Supabase setup files are no longer part of the primary run path. The app now expects the backend API to talk to the current Neon database.
 
 ## Running Automated Tests (CLI)
 

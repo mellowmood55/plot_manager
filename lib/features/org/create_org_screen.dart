@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/backend_api.dart';
 import '../../core/theme.dart';
-import '../../core/supabase_config.dart';
 import '../auth/providers/auth_provider.dart';
 import '../home/dashboard_screen.dart';
 
@@ -30,10 +30,8 @@ class _CreateOrgScreenState extends ConsumerState<CreateOrgScreen> {
     });
 
     try {
-      final client = SupabaseConfig.getClient();
-      final user = client.auth.currentUser;
-
-      if (user == null) {
+      final authState = ref.read(authProvider).value;
+      if (authState == null || !authState.isAuthenticated || authState.token == null) {
         throw Exception('User not authenticated');
       }
 
@@ -46,36 +44,16 @@ class _CreateOrgScreenState extends ConsumerState<CreateOrgScreen> {
       }
 
       // Insert organization with created_by using Auth UID
-      final orgResponse = await client
-          .from('organizations')
-          .insert({
-            'name': _orgNameController.text.trim(),
-            'location': _locationController.text.trim(),
-            'created_by': user.id,
-          })
-          .select()
-          .single();
+      await BackendApi.instance.postJson(
+        '/v1/organizations',
+        token: authState.token,
+        body: {
+          'name': _orgNameController.text.trim(),
+          'location': _locationController.text.trim(),
+        },
+      );
 
-      final orgId = orgResponse['id'];
-
-      // Upsert user's profile with organization_id - guaranteed to link or create
-      try {
-        final userId = user.id;
-        final fullName = (user.userMetadata?['full_name'] as String?) ?? user.email ?? 'User';
-        
-        print('Linking User $userId to Org $orgId');
-        
-        await client.from('profiles').upsert({
-          'id': userId,
-          'full_name': fullName,
-          'organization_id': orgId,
-        });
-      } catch (profileError) {
-        throw Exception('Link to profile failed: ${profileError.toString()}');
-      }
-
-      // Force auth provider to refresh and recognize the new organization link
-      ref.invalidate(authProvider);
+      await ref.read(authProvider.notifier).refresh();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -84,9 +62,6 @@ class _CreateOrgScreenState extends ConsumerState<CreateOrgScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        // Give the auth provider time to invalidate and trigger rebuild
-        await Future.delayed(const Duration(milliseconds: 500));
-        
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const DashboardScreen()),

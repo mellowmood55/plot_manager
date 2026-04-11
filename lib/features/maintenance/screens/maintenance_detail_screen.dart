@@ -654,7 +654,7 @@ class _MaintenanceDetailScreenState extends State<MaintenanceDetailScreen> {
                     icon: const Icon(Icons.check_circle_outline),
                     label: const Text(
                       'Mark as Resolved',
-                      style: const TextStyle(fontFamily: AppTheme.appFontFamily),
+                      style: TextStyle(fontFamily: AppTheme.appFontFamily),
                     ),
                   ),
               ],

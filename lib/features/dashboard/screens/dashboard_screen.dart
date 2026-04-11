@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../../core/supabase_config.dart';
+import '../../../core/backend_api.dart';
 import '../../../core/theme.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -20,17 +20,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadUserName() async {
-    final user = SupabaseConfig.getClient().auth.currentUser;
+    final session = await BackendApi.loadStoredSession();
     setState(() {
-      _userName = user?.userMetadata?['full_name'] as String? ??
-          user?.email ??
-          'User';
+      _userName = session?.profile?.fullName ?? session?.user.fullName ?? session?.user.email ?? 'User';
     });
   }
 
   Future<void> _logout() async {
     try {
-      await SupabaseConfig.getClient().auth.signOut();
+      await BackendApi.clearSession();
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -46,7 +46,6 @@ class AppTheme {
     colorScheme: const ColorScheme.dark(
       primary: darkPrimaryColor,
       surface: darkSurfaceColor,
-      background: scaffoldBackground,
     ),
     textTheme: _comicSansTextTheme(
       ThemeData(brightness: Brightness.dark).textTheme,
@@ -132,8 +131,6 @@ class AppTheme {
       onPrimary: Colors.white,
       surface: lightSurfaceColor,
       onSurface: lightTextColor,
-      background: lightScaffoldBackground,
-      onBackground: lightTextColor,
     ),
     textTheme: _comicSansTextTheme(
       ThemeData(brightness: Brightness.light).textTheme,

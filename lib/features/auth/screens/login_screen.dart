@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/supabase_config.dart';
-import '../../../core/theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class LoginScreen extends StatefulWidget {
+import '../../../core/backend_api.dart';
+import '../../../core/theme.dart';
+import '../providers/auth_provider.dart';
+
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
@@ -30,17 +32,17 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await SupabaseConfig.getClient().auth.signInWithPassword(
+      await ref.read(authProvider.notifier).login(
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
-    } on AuthException catch (error) {
+    } on BackendApiException catch (error) {
       setState(() {
         _errorMessage = error.message;
       });
     } catch (error) {
       setState(() {
-        _errorMessage = 'An unexpected error occurred';
+        _errorMessage = error.toString();
       });
     } finally {
       setState(() {

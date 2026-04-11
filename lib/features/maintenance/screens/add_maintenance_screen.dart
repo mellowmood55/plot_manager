@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_contacts/contact.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -18,11 +17,13 @@ import 'contractor_registry_screen.dart';
 class AddMaintenanceScreen extends StatefulWidget {
   final String? unitId;
   final MaintenanceRequest? initialRequest;
+  final String? heroTag;
 
   const AddMaintenanceScreen({
     super.key,
     this.unitId,
     this.initialRequest,
+    this.heroTag,
   });
 
   @override
@@ -530,6 +531,18 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: widget.heroTag == null
+            ? null
+            : Hero(
+                tag: widget.heroTag!,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Icon(
+                    LucideIcons.wrench,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
         title: Text(
           widget.initialRequest == null ? 'Report Maintenance Issue' : 'Edit Maintenance Issue',
           style: const TextStyle(fontFamily: AppTheme.appFontFamily),
@@ -719,7 +732,7 @@ class _AddMaintenanceScreenState extends State<AddMaintenanceScreen> {
                               margin: const EdgeInsets.only(left: 8),
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
-                                color: AppTheme.primaryColor.withOpacity(0.16),
+                                color: AppTheme.primaryColor.withValues(alpha: 0.16),
                                 borderRadius: BorderRadius.circular(999),
                                 border: Border.all(color: AppTheme.primaryColor),
                               ),

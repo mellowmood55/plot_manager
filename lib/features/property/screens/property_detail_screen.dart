@@ -182,7 +182,7 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: selectedUnitType,
+                      initialValue: selectedUnitType,
                       isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Unit Type',

@@ -7,7 +7,7 @@ import 'contractor_registry_screen.dart';
 import 'maintenance_detail_screen.dart';
 
 class MaintenanceListScreen extends StatefulWidget {
-  const MaintenanceListScreen({Key? key}) : super(key: key);
+  const MaintenanceListScreen({super.key});
 
   @override
   State<MaintenanceListScreen> createState() => _MaintenanceListScreenState();

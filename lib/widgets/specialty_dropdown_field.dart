@@ -77,7 +77,7 @@ class _SpecialtyDropdownFieldState extends State<SpecialtyDropdownField> {
     final items = _buildItems();
 
     return DropdownButtonFormField<String>(
-      value: _selectedSpecialty,
+      initialValue: _selectedSpecialty,
       decoration: const InputDecoration(
         labelText: 'Specialty',
       ),
