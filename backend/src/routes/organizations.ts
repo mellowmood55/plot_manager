@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 
 import { verifyToken } from '../auth.js';
 import { sql } from '../db.js';
@@ -21,7 +22,7 @@ export async function registerOrganizationRoutes(app: FastifyInstance): Promise<
 
       const userRows = await sql`
         select full_name, role
-        from public.app_users
+        from app_users
         where id = ${auth.userId}
         limit 1
       `;
@@ -37,22 +38,27 @@ export async function registerOrganizationRoutes(app: FastifyInstance): Promise<
         return reply.code(403).send({ error: 'Landlord account required' });
       }
 
-      const created = await sql`
-        insert into public.organizations (name, location, created_by)
-        values (${parsed.data.name}, ${parsed.data.location}, ${auth.userId})
-        returning id, name, location, created_by
+      const organizationId = randomUUID();
+      await sql`
+        insert into organizations (id, name, location, created_by)
+        values (${organizationId}, ${parsed.data.name}, ${parsed.data.location}, ${auth.userId})
       `;
 
-      const organization = created[0] as Record<string, unknown>;
+      const organization = {
+        id: organizationId,
+        name: parsed.data.name,
+        location: parsed.data.location,
+        created_by: auth.userId,
+      } as Record<string, unknown>;
       const fullName = (user.full_name ?? 'User').toString();
 
       await sql`
-        insert into public.profiles (id, full_name, organization_id, role)
+        insert into profiles (id, full_name, organization_id, role)
         values (${auth.userId}, ${fullName}, ${organization.id as string}, 'landlord')
-        on conflict (id) do update
-        set full_name = excluded.full_name,
-            organization_id = excluded.organization_id,
-            role = 'landlord'
+        on conflict(id) do update set
+          full_name = excluded.full_name,
+          organization_id = excluded.organization_id,
+          role = excluded.role
       `;
 
       return {

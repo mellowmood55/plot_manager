@@ -1,5 +1,5 @@
 {
-  "name": "plot-manager-neon-api",
+  "name": "plot-manager-api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,11 +10,11 @@
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
-    "@neondatabase/serverless": "^0.10.4",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.4.5",
     "fastify": "^5.0.0",
     "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

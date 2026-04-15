@@ -19,8 +19,8 @@ export async function registerTenantRoutes(app: FastifyInstance): Promise<void> 
       const rows = await sql`
         select p.id, p.full_name, p.role, p.unit_id,
                u.unit_number, u.rent_amount, u.balance_due
-        from public.profiles p
-        left join public.units u on u.id = p.unit_id
+        from profiles p
+        left join units u on u.id = p.unit_id
         where p.id = ${auth.userId}
         limit 1
       `;
@@ -42,7 +42,7 @@ export async function registerTenantRoutes(app: FastifyInstance): Promise<void> 
       const paymentRows = await sql`
         select id, unit_id, tenant_id, amount_paid, transaction_ref, payment_method, payment_date,
                water_reading_previous, water_reading_current, utility_amount
-        from public.payments
+        from payments
         where unit_id = ${unitId}
         order by payment_date desc, created_at desc
         limit 3
@@ -72,7 +72,7 @@ export async function registerTenantRoutes(app: FastifyInstance): Promise<void> 
 
       const profileRows = await sql`
         select role, unit_id
-        from public.profiles
+        from profiles
         where id = ${auth.userId}
         limit 1
       `;
@@ -92,7 +92,7 @@ export async function registerTenantRoutes(app: FastifyInstance): Promise<void> 
       const rows = await sql`
         select id, unit_id, tenant_id, amount_paid, transaction_ref, payment_method, payment_date,
                water_reading_previous, water_reading_current, utility_amount
-        from public.payments
+        from payments
         where unit_id = ${unitId}
         order by payment_date desc, created_at desc
       `;
