@@ -1,4 +1,4 @@
--- Fresh Neon schema for Plot Manager (no seed data).
+-- Fresh PostgreSQL schema for Plot Manager (no seed data).
 -- This setup is backend-authorized (no Supabase RLS/auth dependencies).
 
 create extension if not exists pgcrypto;

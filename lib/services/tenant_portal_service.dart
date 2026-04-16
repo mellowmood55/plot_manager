@@ -1,7 +1,8 @@
-import '../core/backend_api.dart';
+import '../core/supabase_config.dart';
 import '../models/payment.dart';
 import '../models/user_profile.dart';
 import '../models/user_role.dart';
+import 'payment_service.dart';
 
 class TenantDashboardSnapshot {
   const TenantDashboardSnapshot({
@@ -27,34 +28,55 @@ class TenantPortalService {
   static final TenantPortalService instance = TenantPortalService._();
 
   Future<TenantDashboardSnapshot> fetchTenantDashboardSnapshot() async {
-    final response = await BackendApi.instance.getJson('/v1/tenant/dashboard');
-    final responseMap = Map<String, dynamic>.from(response as Map);
+    final client = SupabaseConfig.getClient();
+    final user = client.auth.currentUser;
+    if (user == null) {
+      throw Exception('You must be logged in to view the tenant dashboard.');
+    }
 
-    final profileJson = responseMap['profile'];
-    if (profileJson is! Map) {
+    final profileRow = await client
+        .from('profiles')
+        .select('id, full_name, role, organization_id, unit_id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (profileRow == null) {
       throw Exception('No profile found for this account.');
     }
 
-    final profile = UserProfile.fromJson(Map<String, dynamic>.from(profileJson));
+    final profile = UserProfile.fromJson(Map<String, dynamic>.from(profileRow));
     if (profile.role != UserRole.tenant) {
       throw Exception('This dashboard is available only to tenant accounts.');
     }
 
-    final unitId = (responseMap['unit_id'] ?? profile.unitId)?.toString();
+    final unitId = profile.unitId;
     if (unitId == null || unitId.isEmpty) {
       throw Exception('Tenant profile is not linked to a unit.');
     }
 
-    final balanceDue = responseMap['balance_due'] is num
-        ? (responseMap['balance_due'] as num).toDouble()
-        : double.tryParse((responseMap['balance_due'] ?? 0).toString()) ?? 0;
+    final unitRow = await client
+        .from('units')
+        .select('id, unit_number, rent_amount, balance_due')
+        .eq('id', unitId)
+        .maybeSingle();
 
-    final unitNumber = (responseMap['unit_number'] ?? 'Unit').toString();
-    final fullName = (responseMap['display_name'] ?? profile.fullName).toString();
+    if (unitRow == null) {
+      throw Exception('Tenant unit could not be found.');
+    }
 
-    final lastPayments = (responseMap['last_payments'] as List<dynamic>? ?? const [])
-        .map<PaymentRecord>((row) => PaymentRecord.fromJson(Map<String, dynamic>.from(row as Map)))
-        .toList();
+    final unitNumber = (unitRow['unit_number'] ?? 'Unit').toString();
+    final fullName = profile.fullName;
+    final directBalanceDue = unitRow['balance_due'] is num
+        ? (unitRow['balance_due'] as num).toDouble()
+        : double.tryParse((unitRow['balance_due'] ?? 0).toString()) ?? 0;
+
+    final rentAmount = unitRow['rent_amount'] is num
+        ? (unitRow['rent_amount'] as num).toDouble()
+        : double.tryParse((unitRow['rent_amount'] ?? 0).toString()) ?? 0;
+    final currentMonthPaid = await PaymentService.instance.fetchTotalPaidThisMonth(unitId);
+    final balanceDue = directBalanceDue > 0 ? directBalanceDue : (rentAmount - currentMonthPaid).clamp(0, double.infinity).toDouble();
+
+    final lastPayments = await PaymentService.instance.fetchPaymentHistoryByUnit(unitId);
 
     return TenantDashboardSnapshot(
       profile: profile,
@@ -67,14 +89,6 @@ class TenantPortalService {
   }
 
   Future<List<PaymentRecord>> fetchMyReceipts(String unitId) {
-    return BackendApi.instance.getJson('/v1/tenant/receipts').then((response) {
-      final rows = response is List
-          ? response
-          : (Map<String, dynamic>.from(response as Map))['rows'] as List<dynamic>? ?? const [];
-
-      return rows
-          .map<PaymentRecord>((row) => PaymentRecord.fromJson(Map<String, dynamic>.from(row as Map)))
-          .toList();
-    });
+    return PaymentService.instance.fetchPaymentHistoryByUnit(unitId);
   }
 }

@@ -1,45 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import '../../../core/backend_api.dart';
-import '../../../core/theme.dart';
 
-class DashboardScreen extends StatefulWidget {
+import '../../../core/theme.dart';
+import '../../auth/providers/auth_provider.dart';
+
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
-  String? _userName;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserName();
-  }
-
-  Future<void> _loadUserName() async {
-    final session = await BackendApi.loadStoredSession();
-    setState(() {
-      _userName = session?.profile?.fullName ?? session?.user.fullName ?? session?.user.email ?? 'User';
-    });
-  }
-
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Future<void> _logout() async {
-    try {
-      await BackendApi.clearSession();
-    } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Logout error: $error')),
-        );
-      }
-    }
+    await ref.read(authProvider.notifier).logout();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authState = ref.watch(authProvider).value;
+    final userName = authState?.displayName ?? 'User';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Plot Manager'),
@@ -59,7 +41,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              'Welcome, $_userName',
+              'Welcome, $userName',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                     color: AppTheme.primaryColor,

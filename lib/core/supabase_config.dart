@@ -1,8 +1,8 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SupabaseConfig {
-  static const String supabaseUrl = 'https://gllyvuivhksfgyfexxmp.supabase.co';
-  static const String supabaseKey = 'sb_publishable_eedqHn3r12g9OFiD3KBu7Q_SaAyygay';
+  static const String supabaseUrl = 'https://seipqulkybnhspwgoqak.supabase.co';
+  static const String supabaseKey = 'sb_publishable_86eVExwYB_eEBxxqXJgD8Q_4P98nLq6';
 
   static Future<void> initialize() async {
     await Supabase.initialize(

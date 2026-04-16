@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import '../auth/providers/auth_provider.dart';
 import '../../core/theme.dart';
 import '../../models/property.dart';
+import '../../services/supabase_service.dart';
 import '../maintenance/screens/maintenance_list_screen.dart';
 import '../property/screens/add_property_screen.dart';
 import '../property/screens/property_detail_screen.dart';
@@ -54,12 +55,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> with SingleTi
       final authState = ref.read(authProvider).value;
       final displayName = authState?.displayName ?? 'Landlord';
       final orgId = authState?.profile?.organizationId;
+      String? organizationName;
+      List<Property> properties = const [];
+
+      if (orgId != null && orgId.isNotEmpty) {
+        organizationName = await SupabaseService.instance.getOrganizationName(orgId);
+        properties = await SupabaseService.instance.fetchPropertiesByOrganization(orgId);
+      }
 
       setState(() {
         _displayName = displayName;
         _organizationId = orgId;
-        _organizationName = orgId == null ? null : 'Your Organization';
-        _properties = const [];
+        _organizationName = organizationName;
+        _properties = properties;
         _isLoading = false;
       });
     } catch (error) {

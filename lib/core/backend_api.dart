@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -7,9 +8,10 @@ import '../models/user_profile.dart';
 
 const String _defaultBackendBaseUrl = 'http://10.0.2.2:4000';
 const String _sessionStorageKey = 'backend_auth_session';
+const Duration _requestTimeout = Duration(seconds: 15);
 
 String get backendBaseUrl {
-  const value = String.fromEnvironment('NEON_API_BASE_URL', defaultValue: _defaultBackendBaseUrl);
+  const value = String.fromEnvironment('API_BASE_URL', defaultValue: _defaultBackendBaseUrl);
   final normalized = value.trim();
   if (normalized.isNotEmpty) {
     return normalized.replaceAll(RegExp(r'/+$'), '');
@@ -129,9 +131,12 @@ class BackendApi {
     Map<String, dynamic>? body,
   }) async {
     final client = HttpClient();
+    client.connectionTimeout = _requestTimeout;
 
     try {
-      final request = await client.openUrl(method, Uri.parse('$backendBaseUrl$path'));
+      final request = await client
+          .openUrl(method, Uri.parse('$backendBaseUrl$path'))
+          .timeout(_requestTimeout);
       request.headers.contentType = ContentType.json;
 
       if (token != null && token.isNotEmpty) {
@@ -142,8 +147,11 @@ class BackendApi {
         request.add(utf8.encode(jsonEncode(body)));
       }
 
-      final response = await request.close();
-      final responseText = await response.transform(utf8.decoder).join();
+        final response = await request.close().timeout(_requestTimeout);
+        final responseText = await response
+          .transform(utf8.decoder)
+          .join()
+          .timeout(_requestTimeout);
       final decoded = responseText.isEmpty ? null : jsonDecode(responseText);
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -154,10 +162,17 @@ class BackendApi {
       }
 
       return decoded;
+    } on TimeoutException {
+      throw BackendApiException(
+        'Request timed out after ${_requestTimeout.inSeconds}s. '
+        'Check that backend is running at $backendBaseUrl.',
+      );
     } on BackendApiException {
       rethrow;
     } catch (error) {
-      throw BackendApiException('Failed to contact backend: $error');
+      throw BackendApiException(
+        'Failed to contact backend at $backendBaseUrl: $error',
+      );
     } finally {
       client.close(force: true);
     }

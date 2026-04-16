@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/backend_api.dart';
 import '../../core/theme.dart';
+import '../../core/supabase_config.dart';
 import '../auth/providers/auth_provider.dart';
 import '../home/dashboard_screen.dart';
 
@@ -31,7 +31,10 @@ class _CreateOrgScreenState extends ConsumerState<CreateOrgScreen> {
 
     try {
       final authState = ref.read(authProvider).value;
-      if (authState == null || !authState.isAuthenticated || authState.token == null) {
+      final client = SupabaseConfig.getClient();
+      final userId = authState?.user?.id ?? client.auth.currentUser?.id;
+
+      if (authState == null || !authState.isAuthenticated || userId == null) {
         throw Exception('User not authenticated');
       }
 
@@ -43,15 +46,23 @@ class _CreateOrgScreenState extends ConsumerState<CreateOrgScreen> {
         throw Exception('Business location is required');
       }
 
-      // Insert organization with created_by using Auth UID
-      await BackendApi.instance.postJson(
-        '/v1/organizations',
-        token: authState.token,
-        body: {
-          'name': _orgNameController.text.trim(),
-          'location': _locationController.text.trim(),
-        },
-      );
+      final created = await client.from('organizations').insert({
+        'name': _orgNameController.text.trim(),
+        'location': _locationController.text.trim(),
+        'created_by': userId,
+      }).select('id').single();
+
+      final organizationId = (created['id'] ?? '').toString();
+      if (organizationId.isEmpty) {
+        throw Exception('Failed to create organization');
+      }
+
+      await client.from('profiles').upsert({
+        'id': userId,
+        'full_name': authState.displayName,
+        'organization_id': organizationId,
+        'role': 'landlord',
+      });
 
       await ref.read(authProvider.notifier).refresh();
 

@@ -1,23 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 
-import '../../../core/backend_api.dart';
 import '../../../core/theme.dart';
 import '../../../models/payment.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../../services/tenant_portal_service.dart';
 import '../../maintenance/screens/add_maintenance_screen.dart';
 import '../../settings/settings_screen.dart';
 import 'tenant_receipts_screen.dart';
 
-class TenantDashboardScreen extends StatefulWidget {
+class TenantDashboardScreen extends ConsumerStatefulWidget {
   const TenantDashboardScreen({super.key});
 
   @override
-  State<TenantDashboardScreen> createState() => _TenantDashboardScreenState();
+  ConsumerState<TenantDashboardScreen> createState() => _TenantDashboardScreenState();
 }
 
-class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
+class _TenantDashboardScreenState extends ConsumerState<TenantDashboardScreen> {
   static const String _reportHeroTag = 'tenant-report-hero';
 
   final NumberFormat _currencyFormat = NumberFormat.currency(symbol: r'$ ', decimalDigits: 2);
@@ -187,7 +188,7 @@ class _TenantDashboardScreenState extends State<TenantDashboardScreen> {
             tooltip: 'Logout',
             icon: const Icon(LucideIcons.logOut),
             onPressed: () async {
-              await BackendApi.clearSession();
+              await ref.read(authProvider.notifier).logout();
             },
           ),
         ],

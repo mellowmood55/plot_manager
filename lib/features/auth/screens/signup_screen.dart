@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/backend_api.dart';
 import '../../../core/theme.dart';
 import '../providers/auth_provider.dart';
 
@@ -95,10 +94,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
           content: Text('Account created successfully.'),
         ),
       );
-    } on BackendApiException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
     } catch (_) {
       setState(() {
         _errorMessage = 'An unexpected error occurred';

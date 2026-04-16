@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/backend_api.dart';
 import '../../../core/theme.dart';
 import '../providers/auth_provider.dart';
 
@@ -36,10 +35,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             email: _emailController.text.trim(),
             password: _passwordController.text,
           );
-    } on BackendApiException catch (error) {
-      setState(() {
-        _errorMessage = error.message;
-      });
     } catch (error) {
       setState(() {
         _errorMessage = error.toString();

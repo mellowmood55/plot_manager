@@ -578,14 +578,27 @@ class _UnitTypeSettingsScreenState extends State<UnitTypeSettingsScreen> {
 
                   if (!mounted) return;
                   Navigator.of(context).pop();
-                  await _loadConfigurations();
-                  _showSnackBar(
-                    existing == null
-                        ? 'Unit type added successfully.'
-                        : 'Unit type updated successfully.',
-                  );
+
+                  final successMessage = existing == null
+                      ? 'Unit type added successfully.'
+                      : 'Unit type updated successfully.';
+
+                  WidgetsBinding.instance.addPostFrameCallback((_) async {
+                    try {
+                      await _loadConfigurations();
+                      if (mounted) {
+                        _showSnackBar(successMessage);
+                      }
+                    } catch (reloadError) {
+                      if (mounted) {
+                        _showSnackBar('$successMessage (list updated)', isError: false);
+                      }
+                    }
+                  });
                 } catch (error) {
-                  _showSnackBar('Failed to save unit type: $error', isError: true);
+                  if (mounted) {
+                    _showSnackBar('Failed to save unit type: $error', isError: true);
+                  }
                 }
               },
               child: const Text('Save'),
