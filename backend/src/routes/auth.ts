@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 
 import { verifyToken } from '../auth.js';
 import { signToken } from '../auth.js';
@@ -23,7 +24,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
   async function loadProfile(userId: string) {
     const rows = await sql`
       select id, full_name, organization_id, role, unit_id
-      from public.profiles
+      from profiles
       where id = ${userId}
       limit 1
     `;
@@ -33,11 +34,11 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
   async function createOrUpdateProfile(userId: string, fullName: string, role: 'landlord' | 'tenant') {
     await sql`
-      insert into public.profiles (id, full_name, role)
+      insert into profiles (id, full_name, role)
       values (${userId}, ${fullName}, ${role})
-      on conflict (id) do update
-      set full_name = excluded.full_name,
-          role = excluded.role
+      on conflict(id) do update set
+        full_name = excluded.full_name,
+        role = excluded.role
     `;
   }
 
@@ -51,19 +52,26 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
     const email = payload.email.trim().toLowerCase();
 
     const existing = await sql`
-      select id from public.app_users where email = ${email} limit 1
+      select id from app_users where email = ${email} limit 1
     `;
 
     if (existing.length > 0) {
       return reply.code(409).send({ error: 'Email already registered' });
     }
 
+    const userId = randomUUID();
     const passwordHash = await bcrypt.hash(payload.password, 10);
 
+    await sql`
+      insert into app_users (id, full_name, email, phone, password_hash, role)
+      values (${userId}, ${payload.fullName}, ${email}, ${payload.phone}, ${passwordHash}, ${payload.role})
+    `;
+
     const created = await sql`
-      insert into public.app_users (full_name, email, phone, password_hash, role)
-      values (${payload.fullName}, ${email}, ${payload.phone}, ${passwordHash}, ${payload.role})
-      returning id, full_name, email, role
+      select id, full_name, email, role
+      from app_users
+      where id = ${userId}
+      limit 1
     `;
 
     const user = created[0] as Record<string, unknown>;
@@ -106,7 +114,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
     const rows = await sql`
       select id, full_name, email, password_hash, role
-      from public.app_users
+      from app_users
       where email = ${email}
       limit 1
     `;
@@ -153,7 +161,7 @@ export async function registerAuthRoutes(app: FastifyInstance): Promise<void> {
 
       const userRows = await sql`
         select id, full_name, email, role
-        from public.app_users
+        from app_users
         where id = ${auth.userId}
         limit 1
       `;

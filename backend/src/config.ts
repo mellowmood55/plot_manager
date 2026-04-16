@@ -12,5 +12,5 @@ function required(name: string): string {
 export const config = {
   port: Number(process.env.PORT ?? 4000),
   jwtSecret: required('JWT_SECRET'),
-  neonDatabaseUrl: required('NEON_DATABASE_URL'),
+  databaseUrl: required('DATABASE_URL'),
 };
